@@ -12,9 +12,11 @@ class Background extends StatelessWidget {
 
     final circleSize = screenWidth * 1.5;
 
+    final scheme = Theme.of(context).colorScheme;
+
     return Stack(
       children: [
-        Container(color: Colors.purple),
+        Container(color: scheme.primary),
 
         AnimatedPositioned(
           duration: const Duration(milliseconds: 700),
@@ -27,8 +29,8 @@ class Background extends StatelessWidget {
           child: Container(
             width: circleSize,
             height: circleSize,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: scheme.surface,
               shape: BoxShape.circle,
             ),
           ),

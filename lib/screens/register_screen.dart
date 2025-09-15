@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'widgets/background.dart';
-import 'circle_state.dart';
+import 'package:get/get.dart';
+import '../widgets/background.dart';
+import '../circle_state.dart';
 
 import 'package:appwrite/appwrite.dart';
 import '../config/environment.dart';
+import '../controllers/theme_controller.dart';
 
 class RegisterScreen extends StatefulWidget {
   final CircleStateNotifier circleNotifier;
@@ -23,6 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   late Client client;
   late Account account;
   bool _isLoading = false;
+  bool _obscureRegPassword = true;
 
   @override
   void initState() {
@@ -72,6 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       body: Stack(
         children: [
+          // Theme toggle button (top-right)
           Background(animateCircle: true),
 
           Center(
@@ -80,7 +84,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: screenWidth * 0.85,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.grey[850],
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: const [
                     BoxShadow(
@@ -95,12 +99,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Align(
+                      Align(
                         alignment: Alignment.center,
                         child: Text(
                           "Crear Cuenta",
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
                           ),
@@ -135,7 +139,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ? const Center(child: CircularProgressIndicator())
                           : ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 50,
                                   vertical: 15,
@@ -145,11 +151,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               onPressed: _register,
-                              child: const Text(
+                              child: Text(
                                 "Registrarse",
                                 style: TextStyle(
                                   fontSize: 18,
-                                  color: Colors.white,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimary,
                                 ),
                               ),
                             ),
@@ -171,6 +179,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
+          // Theme toggle (top-right, always on top)
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, right: 8),
+                child: IconButton(
+                  tooltip: 'Cambiar tema',
+                  onPressed: () => Get.find<ThemeController>().toggleTheme(),
+                  icon: Icon(
+                    Icons.brightness_6,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -181,7 +206,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       alignment: Alignment.centerLeft,
       child: Text(
         text,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontSize: 16,
+        ),
       ),
     );
   }
@@ -191,13 +219,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     bool obscure,
     String errorText,
   ) {
+    final isPassword = obscure;
     return TextFormField(
       controller: controller,
-      obscureText: obscure,
+      obscureText: isPassword ? _obscureRegPassword : false,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+      cursorColor: Theme.of(context).colorScheme.primary,
       validator: (value) => (value == null || value.isEmpty) ? errorText : null,
       decoration: InputDecoration(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Theme.of(context).colorScheme.surface,
+        suffixIcon: isPassword
+            ? IconButton(
+                onPressed: () => setState(() {
+                  _obscureRegPassword = !_obscureRegPassword;
+                }),
+                icon: Icon(
+                  _obscureRegPassword ? Icons.visibility_off : Icons.visibility,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.7),
+                ),
+              )
+            : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );

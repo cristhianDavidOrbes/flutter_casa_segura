@@ -1,15 +1,17 @@
 import 'package:appwrite/appwrite.dart';
+import '../config/environment.dart';
 
 class AppwriteService {
   final Client client = Client();
   late Account account;
 
   AppwriteService() {
-    client.setEndpoint('http://localhost/v1').setProject('tu_project_id');
+    client
+        .setEndpoint(Environment.appwritePublicEndpoint)
+        .setProject(Environment.appwriteProjectId);
     account = Account(client);
   }
 
-  // Registrar usuario
   Future createUser(String email, String password, String name) async {
     return await account.create(
       userId: ID.unique(),

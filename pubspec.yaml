@@ -8,13 +8,16 @@ environment:
   sdk: ^3.9.0
 
 dependencies:
+  app_links: ^6.1.1
   appwrite: ^18.0.0
   flutter:
     sdk: flutter
+  get: ^4.6.6
 
   cupertino_icons: ^1.0.8
   font_awesome_flutter: ^10.10.0   
-
+  flutter_web_auth_2: ^4.1.0
+  rive: ^0.13.12  
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -22,3 +25,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/rive/camara.riv  
