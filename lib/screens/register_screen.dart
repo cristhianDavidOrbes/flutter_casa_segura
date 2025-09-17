@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-// Fondo animado + círculo
+// Fondo + círculo
 import '../widgets/background.dart';
 import '../circle_state.dart';
 
@@ -26,7 +26,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // ---------- Form ----------
+  // -------- Form --------
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -37,20 +37,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePwd = true;
 
-  // ---------- Appwrite ----------
+  // -------- Appwrite --------
   late final Client _client;
   late final Account _account;
 
-  // ---------- Rive ----------
+  // -------- Rive --------
   Artboard? _artboard;
   StateMachineController? _sm;
+  SMIInput<double>? _iAnim; // único input numérico: "animacion"
 
-  // Inputs (nombres EXACTOS en tu .riv)
-  SMIInput<bool>? _iCorreo; // "correo"
-  SMIInput<bool>? _iContrasena; // "contraseña"
-  SMIInput<bool>? _iRegistrarse; // "registrarse"
-  SMIInput<bool>? _iRegistrado; // "registrado"
-  SMIInput<bool>? _iNoRegistrado; // "No_registrado"
+  // Estados (deben coincidir con tu .riv)
+  static const double kIdle = 0;
+  static const double kCorreo = 1;
+  static const double kContrasena = 2;
+  static const double kNoRegistrado = 3;
+  static const double kRegistrado = 4;
 
   @override
   void initState() {
@@ -65,22 +66,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Rive
     _loadRive();
 
-    // Focos -> animaciones
+    // Focos -> animación
     _emailFocus.addListener(() {
       if (_emailFocus.hasFocus) {
-        _setBool(_iCorreo, true);
-        _setBool(_iContrasena, false);
-      } else {
-        _setBool(_iCorreo, false);
+        _setAnim(kCorreo);
+      } else if (!_pwdFocus.hasFocus) {
+        _setAnim(kIdle);
       }
     });
 
     _pwdFocus.addListener(() {
       if (_pwdFocus.hasFocus) {
-        _setBool(_iContrasena, true);
-        _setBool(_iCorreo, false);
-      } else {
-        _setBool(_iContrasena, false);
+        _setAnim(kContrasena);
+      } else if (!_emailFocus.hasFocus) {
+        _setAnim(kIdle);
       }
     });
   }
@@ -95,12 +94,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // ---------- Rive ----------
+  // -------- Rive --------
   Future<void> _loadRive() async {
     try {
-      // Asegúrate de tener este asset en pubspec.yaml
       final file = await RiveFile.asset('assets/rive/registro.riv');
-      // Artboard y StateMachine EXACTOS
       final art = file.artboardByName('registrarse') ?? file.mainArtboard;
 
       final controller = StateMachineController.fromArtboard(
@@ -111,19 +108,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (controller != null) {
         art.addController(controller);
         _sm = controller;
+        _iAnim = controller.findInput<double>('animacion');
 
-        _iCorreo = controller.findInput<bool>('correo');
-        _iContrasena = controller.findInput<bool>('contraseña');
-        _iRegistrarse = controller.findInput<bool>('registrarse');
-        _iRegistrado = controller.findInput<bool>('registrado');
-        _iNoRegistrado = controller.findInput<bool>('No_registrado');
-
-        // Estado inicial
-        _setBool(_iRegistrarse, true);
-        _setBool(_iCorreo, false);
-        _setBool(_iContrasena, false);
-        _setBool(_iRegistrado, false);
-        _setBool(_iNoRegistrado, false);
+        // Estado inicial: idle (0)
+        _setAnim(kIdle);
       }
 
       setState(() => _artboard = art);
@@ -132,24 +120,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _setBool(SMIInput<bool>? i, bool v) {
-    if (i == null) return;
-    i.value = v;
+  void _setAnim(double v) {
+    if (_iAnim == null) return;
+    _iAnim!.value = v;
   }
 
-  Future<void> _pulse(SMIInput<bool>? i, {int ms = 1100}) async {
-    if (i == null) return;
-    i.value = true;
-    await Future.delayed(Duration(milliseconds: ms));
-    i.value = false;
-  }
-
-  // ---------- Registro ----------
+  // -------- Registro --------
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // “Modo registrarse” activo para que la SM elija el flujo correcto
-    _setBool(_iRegistrarse, true);
+    // Si el form es inválido, disparar 3 (no registrado) y no llamar API
+    if (!_formKey.currentState!.validate()) {
+      _setAnim(kNoRegistrado);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Revisa los campos del formulario.')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -163,20 +148,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Éxito: dispara “registrado”
-      _pulse(_iRegistrado);
+      // Éxito → 4
+      _setAnim(kRegistrado);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('✅ Registro exitoso')));
 
-      // Vuelve al login con la animación del círculo
+      // Pequeña pausa para ver la animación
       await Future.delayed(const Duration(milliseconds: 1200));
+
       widget.circleNotifier.moveToBottom();
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      // Error: dispara “No_registrado”
-      _pulse(_iNoRegistrado);
+      // Fallo → 3
+      _setAnim(kNoRegistrado);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
@@ -185,50 +171,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // ---------- UI ----------
+  // -------- UI --------
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final w = MediaQuery.of(context).size.width;
     final h = MediaQuery.of(context).size.height;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    // ====== KNOBS (ajusta a tu gusto) ======
-    final double riveHeight = h * 0.62; // alto del área de Rive
-    final double riveScale = 1.10; // zoom de la animación
-    final double riveBottomOffset = -106; // NEGATIVO => más abajo
-    final double liftAboveRive = 180; // cuánto sube la tarjeta
-
-    // Mantener tarjeta y animación “alineadas”
-    final double cardBottom = riveBottomOffset + riveHeight - liftAboveRive;
+    // Más grande y más abajo
+    final double riveHeight = h * 0.96; // ocupa casi toda la altura
+    final double riveYOffset = 250; // empuja la animación hacia abajo
+    final double cardBottom = bottomInset + 200; // tarjeta muy cerca del borde
 
     return Scaffold(
       body: Stack(
         children: [
           Background(animateCircle: true),
 
-          // Animación Rive pegada (o salida) al fondo
+          // Animación pegada al borde inferior y aún más abajo
           if (_artboard != null)
             Positioned(
               left: 0,
               right: 0,
-              bottom: riveBottomOffset,
+              bottom: 0,
               height: riveHeight,
               child: IgnorePointer(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Transform.scale(
-                    scale: riveScale,
-                    child: Rive(
-                      artboard: _artboard!,
-                      fit: BoxFit
-                          .contain, // prueba BoxFit.cover si quieres llenar más
-                    ),
-                  ),
+                child: Transform.translate(
+                  offset: Offset(0, riveYOffset),
+                  child: Rive(artboard: _artboard!, fit: BoxFit.contain),
                 ),
               ),
             ),
 
-          // Tarjeta por encima de la animación
+          // Tarjeta – lo más abajo posible
           Positioned(
             left: 0,
             right: 0,
@@ -274,15 +250,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Escribe tu nombre'
                               : null,
+                          // No tocamos animación para nombre → permanece 0
                         ),
                         const SizedBox(height: 14),
 
                         _label('Correo electrónico:'),
                         _textField(
                           controller: _emailCtrl,
-                          hint: 'tucorreo@ejemplo.com',
                           focusNode: _emailFocus,
                           keyboard: TextInputType.emailAddress,
+                          hint: 'tucorreo@ejemplo.com',
                           validator: (v) {
                             final t = v?.trim() ?? '';
                             if (t.isEmpty) return 'Escribe tu correo';
@@ -291,21 +268,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             }
                             return null;
                           },
+                          onTapExtra: () => _setAnim(kCorreo),
+                          onChangedExtra: (_) => _setAnim(kCorreo),
                         ),
                         const SizedBox(height: 14),
 
                         _label('Contraseña:'),
                         _textField(
                           controller: _pwdCtrl,
-                          hint: 'Mínimo 6 caracteres',
                           focusNode: _pwdFocus,
+                          hint: 'Mínimo 6 caracteres',
                           obscure: _obscurePwd,
                           suffix: IconButton(
                             onPressed: () {
                               setState(() => _obscurePwd = !_obscurePwd);
-                              // refuerza estado de “contraseña”
-                              _setBool(_iContrasena, true);
-                              _setBool(_iCorreo, false);
+                              _setAnim(kContrasena);
                             },
                             icon: Icon(
                               _obscurePwd
@@ -320,6 +297,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (t.length < 6) return 'Mínimo 6 caracteres';
                             return null;
                           },
+                          onTapExtra: () => _setAnim(kContrasena),
+                          onChangedExtra: (_) => _setAnim(kContrasena),
                         ),
                         const SizedBox(height: 20),
 
@@ -362,7 +341,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // Botón de tema (arriba-derecha)
+          // Toggle de tema
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
@@ -381,7 +360,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ---------- helpers UI ----------
   Widget _label(String text) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -403,6 +381,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     FocusNode? focusNode,
     bool obscure = false,
     Widget? suffix,
+    VoidCallback? onTapExtra,
+    ValueChanged<String>? onChangedExtra,
   }) {
     final cs = Theme.of(context).colorScheme;
     return TextFormField(
@@ -424,22 +404,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderSide: BorderSide(color: cs.outline.withOpacity(.35)),
         ),
       ),
-      onTap: () {
-        if (focusNode == _emailFocus) {
-          _setBool(_iCorreo, true);
-          _setBool(_iContrasena, false);
-        } else if (focusNode == _pwdFocus) {
-          _setBool(_iContrasena, true);
-          _setBool(_iCorreo, false);
-        }
-      },
-      onChanged: (_) {
-        if (focusNode == _emailFocus) {
-          _setBool(_iCorreo, true);
-        } else if (focusNode == _pwdFocus) {
-          _setBool(_iContrasena, true);
-        }
-      },
+      onTap: () => onTapExtra?.call(),
+      onChanged: (v) => onChangedExtra?.call(v),
     );
   }
 }
