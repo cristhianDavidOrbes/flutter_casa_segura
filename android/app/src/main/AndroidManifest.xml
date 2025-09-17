@@ -6,7 +6,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- MainActivity (lanza tu app normal) -->
+        <!-- Activity principal de Flutter -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -17,27 +17,41 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Tema que se muestra mientras arranca Flutter -->
+            <!-- Tema mientras arranca Flutter -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
-            <!-- Launcher principal -->
+            <!-- Launcher -->
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep-link personalizado de tu app -->
+            <!-- Deep link personalizado: casa_segura://reset?userId=...&secret=... -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="casasegura"
+                    android:host="reset" />
+            </intent-filter>
+
+            <!-- App Link verificado al puente de Vercel -->
+            <!-- Cambia host/ruta si tu dominio o path son distintos -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="casa_segura" android:host="auth" />
+                <data
+                    android:scheme="https"
+                    android:host="redirrecion-home.vercel.app"
+                    android:pathPrefix="/reset" />
             </intent-filter>
         </activity>
 
-        <!-- Activity que maneja el callback de Appwrite (flutter_web_auth_2) -->
+        <!-- Solo si usas flutter_web_auth_2 con OAuth/Appwrite -->
         <activity
             android:exported="true"
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity">
@@ -45,19 +59,17 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- ⚠️ Usa tu projectId exacto, sin corchetes -->
+                <!-- Sustituye el scheme por el que tengas configurado en OAuth -->
                 <data android:scheme="appwrite-callback-68c1a95b0023a51861be" />
             </intent-filter>
         </activity>
 
-        <!-- Configuración interna de Flutter -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-
     </application>
 
-    <!-- Permite a Flutter consultar actividades que procesan texto -->
+    <!-- Ejemplo de queries opcionales -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />

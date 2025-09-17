@@ -28,3 +28,4 @@ flutter:
 
   assets:
     - assets/rive/camara.riv  
+    - assets/rive/registro.riv
