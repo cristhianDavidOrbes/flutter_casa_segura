@@ -2,29 +2,31 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:appwrite/appwrite.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'config/environment.dart';
 import 'controllers/theme_controller.dart';
 import 'theme/app_theme.dart';
-
 import 'circle_state.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_page.dart';
-
-// 👇 Servicio global que escucha los deep links
 import 'services/deeplink_service.dart';
+import 'data/hive/ai_comment.dart';
+import 'data/hive/ai_comment_store.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Appwrite
+  await Hive.initFlutter();
+  Hive.registerAdapter(AiCommentAdapter());
+  await AiCommentStore.init();
+
   final client = Client()
     ..setEndpoint(Environment.appwritePublicEndpoint)
     ..setProject(Environment.appwriteProjectId);
-
   final account = Account(client);
 
-  // ¿Hay sesión?
   bool loggedIn = false;
   try {
     await account.get();
@@ -39,7 +41,6 @@ void main() async {
 class MyApp extends StatefulWidget {
   final Account account;
   final bool loggedIn;
-
   const MyApp({super.key, required this.account, required this.loggedIn});
 
   @override
@@ -56,9 +57,8 @@ class _MyAppState extends State<MyApp> {
     _circleNotifier = CircleStateNotifier();
     _themeController = Get.put(ThemeController(), permanent: true);
 
-    // Importante: inicia el listener de deep links cuando ya existe el árbol de navegación
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      DeeplinkService().init(); // escucha casa_segura://reset?userId=&secret=
+      DeeplinkService().init();
     });
   }
 
@@ -71,9 +71,14 @@ class _MyAppState extends State<MyApp> {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: _themeController.themeMode,
-        home: widget.loggedIn
-            ? HomePage(account: widget.account, circleNotifier: _circleNotifier)
-            : LoginScreen(circleNotifier: _circleNotifier),
+        home: SplashScreen(
+          nextPage: widget.loggedIn
+              ? HomePage(
+                  account: widget.account,
+                  circleNotifier: _circleNotifier,
+                )
+              : LoginScreen(circleNotifier: _circleNotifier),
+        ),
       ),
     );
   }
