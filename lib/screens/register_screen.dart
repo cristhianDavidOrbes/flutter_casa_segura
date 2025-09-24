@@ -1,7 +1,5 @@
-// lib/screens/register_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 
 // Fondo + círculo
 import '../widgets/background.dart';
@@ -11,11 +9,11 @@ import '../circle_state.dart';
 import 'package:appwrite/appwrite.dart';
 import '../config/environment.dart';
 
-// Tema
-import '../controllers/theme_controller.dart';
-
 // Rive
 import 'package:rive/rive.dart';
+
+// Botón de tema
+import '../widgets/theme_toggle_button.dart';
 
 class RegisterScreen extends StatefulWidget {
   final CircleStateNotifier circleNotifier;
@@ -43,10 +41,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // -------- Rive --------
   Artboard? _artboard;
-  StateMachineController? _sm;
   SMIInput<double>? _iAnim; // único input numérico: "animacion"
 
-  // Estados (deben coincidir con tu .riv)
+  // Estados (coinciden con tu .riv)
   static const double kIdle = 0;
   static const double kCorreo = 1;
   static const double kContrasena = 2;
@@ -57,16 +54,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
 
-    // Appwrite
     _client = Client()
       ..setEndpoint(Environment.appwritePublicEndpoint)
       ..setProject(Environment.appwriteProjectId);
     _account = Account(_client);
 
-    // Rive
     _loadRive();
 
-    // Focos -> animación
     _emailFocus.addListener(() {
       if (_emailFocus.hasFocus) {
         _setAnim(kCorreo);
@@ -107,10 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (controller != null) {
         art.addController(controller);
-        _sm = controller;
         _iAnim = controller.findInput<double>('animacion');
-
-        // Estado inicial: idle (0)
         _setAnim(kIdle);
       }
 
@@ -127,7 +118,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // -------- Registro --------
   Future<void> _register() async {
-    // Si el form es inválido, disparar 3 (no registrado) y no llamar API
     if (!_formKey.currentState!.validate()) {
       _setAnim(kNoRegistrado);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -148,20 +138,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Éxito → 4
       _setAnim(kRegistrado);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('✅ Registro exitoso')));
 
-      // Pequeña pausa para ver la animación
       await Future.delayed(const Duration(milliseconds: 1200));
 
       widget.circleNotifier.moveToBottom();
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      // Fallo → 3
       _setAnim(kNoRegistrado);
       ScaffoldMessenger.of(
         context,
@@ -179,17 +166,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final h = MediaQuery.of(context).size.height;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    // Más grande y más abajo
-    final double riveHeight = h * 0.96; // ocupa casi toda la altura
-    final double riveYOffset = 250; // empuja la animación hacia abajo
-    final double cardBottom = bottomInset + 200; // tarjeta muy cerca del borde
+    final double riveHeight = h * 0.96;
+    final double riveYOffset = 250;
+    final double cardBottom = bottomInset + 200;
 
     return Scaffold(
       body: Stack(
         children: [
           Background(animateCircle: true),
 
-          // Animación pegada al borde inferior y aún más abajo
           if (_artboard != null)
             Positioned(
               left: 0,
@@ -204,7 +189,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
 
-          // Tarjeta – lo más abajo posible
           Positioned(
             left: 0,
             right: 0,
@@ -250,7 +234,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           validator: (v) => (v == null || v.trim().isEmpty)
                               ? 'Escribe tu nombre'
                               : null,
-                          // No tocamos animación para nombre → permanece 0
                         ),
                         const SizedBox(height: 14),
 
@@ -341,16 +324,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // Toggle de tema
+          // Toggle de tema (no usa AppBar → sin overflow)
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.only(top: 6, right: 8),
-                child: IconButton(
-                  tooltip: 'Cambiar tema',
-                  onPressed: () => Get.find<ThemeController>().toggleTheme(),
-                  icon: Icon(Icons.brightness_6, color: cs.onPrimary),
+                child: ThemeToggleButton(
+                  color: cs.onPrimary,
+                  padding: EdgeInsets.zero,
                 ),
               ),
             ),

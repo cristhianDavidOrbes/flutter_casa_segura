@@ -1,6 +1,7 @@
 // lib/screens/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../widgets/theme_toggle_button.dart';
 import 'package:appwrite/appwrite.dart';
 import '../config/environment.dart';
 
@@ -100,7 +101,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Recuperar contraseña')),
+      appBar: AppBar(
+        title: const Text('Recuperar contraseña'),
+        actions: const [
+          ThemeToggleButton(),
+        ],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),

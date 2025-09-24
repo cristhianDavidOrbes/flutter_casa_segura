@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
 
+import '../widgets/theme_toggle_button.dart';
+
 class SplashScreen extends StatefulWidget {
   final Widget nextPage;
 
@@ -51,6 +53,19 @@ class _SplashScreenState extends State<SplashScreen> {
         Offstage(
           offstage: _showNext,
           child: splash,
+        ),
+
+        SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, right: 8),
+              child: ThemeToggleButton(
+                color: Theme.of(context).colorScheme.onPrimary,
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
         ),
       ],
     );

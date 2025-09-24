@@ -1,12 +1,30 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.flutter_seguridad_en_casa">
 
-    <application
-        android:label="flutter_seguridad_en_casa"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+    <!-- Permisos de red / Wi-Fi / mDNS -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
-        <!-- Activity principal de Flutter -->
+    <!-- Ubicación para escaneo/conexión Wi-Fi (Android 10+) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Android 13+ (Tiramisu): escaneo Wi-Fi sin ubicación -->
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        tools:targetApi="33" />
+
+    <application
+        android:name="${applicationName}"
+        android:label="flutter_seguridad_en_casa"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -28,7 +46,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link personalizado: casa_segura://reset?userId=...&secret=... -->
+            <!-- Deep link personalizado -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -38,8 +56,7 @@
                     android:host="reset" />
             </intent-filter>
 
-            <!-- App Link verificado al puente de Vercel -->
-            <!-- Cambia host/ruta si tu dominio o path son distintos -->
+            <!-- App Link verificado (ajusta host/path a tu dominio real) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -51,15 +68,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Solo si usas flutter_web_auth_2 con OAuth/Appwrite -->
+        <!-- Si usas flutter_web_auth_2 para OAuth/Appwrite -->
         <activity
-            android:exported="true"
-            android:name="com.linusu.flutter_web_auth_2.CallbackActivity">
+            android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
+            android:exported="true">
             <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Sustituye el scheme por el que tengas configurado en OAuth -->
                 <data android:scheme="appwrite-callback-68c1a95b0023a51861be" />
             </intent-filter>
         </activity>
@@ -69,7 +85,7 @@
             android:value="2" />
     </application>
 
-    <!-- Ejemplo de queries opcionales -->
+    <!-- (Opcional) ejemplo de queries -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />

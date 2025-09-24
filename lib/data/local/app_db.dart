@@ -1,11 +1,8 @@
-// lib/data/app_db.dart
+// lib/data/local/app_db.dart
 import 'dart:async';
-
 import 'package:sqflite/sqflite.dart';
-
 import 'package:path/path.dart' as p;
 
-/// Administración de la base de datos local utilizando `sqflite`.
 class AppDb {
   AppDb._();
   static final AppDb instance = AppDb._();
@@ -96,8 +93,7 @@ class AppDb {
     }
   }
 
-  // ---------------- CRUDs simples ----------------
-
+  // -------- CRUDs básicos --------
   Future<int> insertMember(FamilyMember member) async {
     final db = await database;
     return db.insert(
@@ -192,6 +188,103 @@ class AppDb {
       for (final r in rows)
         PersonOfInterest.fromMap(r).id!: PersonOfInterest.fromMap(r),
     };
+  }
+
+  // -------- Helpers de dispositivos --------
+
+  /// Inserta o actualiza por `device_id` (único).
+  /// Devuelve el rowId si insertó (0 si solo actualizó).
+  Future<int> upsertDeviceByDeviceId({
+    required String deviceId,
+    required String name,
+    required String type,
+    String? ip,
+    required int addedAt,
+    int? lastSeenAt,
+  }) async {
+    final db = await database;
+
+    // insert IGNORE
+    final inserted = await db.insert(Device.tableName, {
+      'device_id': deviceId,
+      'name': name,
+      'type': type,
+      'ip': ip,
+      'owner_id': null,
+      'added_at': addedAt,
+      'last_seen_at': lastSeenAt ?? addedAt,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    if (inserted != 0) return inserted;
+
+    // update si ya existía
+    await db.update(
+      Device.tableName,
+      {
+        'name': name,
+        'type': type,
+        'ip': ip,
+        'last_seen_at': lastSeenAt ?? DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+    return 0;
+  }
+
+  /// Marca como visto (y actualiza ip/name/type si se pasan).
+  Future<void> touchDeviceSeen(
+    String deviceId, {
+    String? ip,
+    String? name,
+    String? type,
+    int? whenMs,
+  }) async {
+    final db = await database;
+    final now = whenMs ?? DateTime.now().millisecondsSinceEpoch;
+    final values = <String, Object?>{'last_seen_at': now};
+    if (ip != null) values['ip'] = ip;
+    if (name != null) values['name'] = name;
+    if (type != null) values['type'] = type;
+
+    await db.update(
+      Device.tableName,
+      values,
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  /// Borra por `device_id`.
+  Future<void> deleteDeviceByDeviceId(String deviceId) async {
+    final db = await database;
+    await db.delete(
+      Device.tableName,
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  /// Lista todos.
+  Future<List<Device>> fetchAllDevices() async {
+    final db = await database;
+    final rows = await db.query(
+      Device.tableName,
+      orderBy: 'name COLLATE NOCASE',
+    );
+    return rows.map(Device.fromMap).toList();
+  }
+
+  /// Obtiene uno por `device_id`.
+  Future<Device?> getDeviceByDeviceId(String deviceId) async {
+    final db = await database;
+    final rows = await db.query(
+      Device.tableName,
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Device.fromMap(rows.first);
   }
 }
 

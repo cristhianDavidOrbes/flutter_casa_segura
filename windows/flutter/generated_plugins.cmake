@@ -4,7 +4,9 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
+  connectivity_plus
   desktop_webview_window
+  permission_handler_windows
   rive_common
   url_launcher_windows
   window_to_front

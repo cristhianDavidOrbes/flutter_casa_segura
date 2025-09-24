@@ -1,6 +1,7 @@
 // lib/screens/reset_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../widgets/theme_toggle_button.dart';
 import 'package:appwrite/appwrite.dart';
 
 import '../config/environment.dart';
@@ -102,7 +103,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Restablecer contraseña')),
+      appBar: AppBar(
+        title: const Text('Restablecer contraseña'),
+        actions: const [
+          ThemeToggleButton(),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),

@@ -9,7 +9,7 @@ import 'package:get/get.dart';
 import '../widgets/background.dart';
 import 'register_screen.dart';
 import '../circle_state.dart';
-import '../controllers/theme_controller.dart';
+import '../widgets/theme_toggle_button.dart';
 
 // Appwrite
 import 'package:appwrite/appwrite.dart';
@@ -299,6 +299,7 @@ class _LoginScreenState extends State<LoginScreen>
           // Contenido
           SafeArea(
             child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 16,
                 (_riveHeight + 30 + _topShift - _overlap).clamp(
@@ -539,19 +540,15 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           ),
 
-          // Botón de tema – siempre arriba a la izquierda
+          // Botón de tema – siempre arriba a la derecha
           SafeArea(
             child: Align(
-              alignment: Alignment.topLeft,
+              alignment: Alignment.topRight,
               child: Padding(
-                padding: const EdgeInsets.only(top: 8, left: 8),
-                child: IconButton(
-                  tooltip: 'Cambiar tema',
-                  onPressed: () => Get.find<ThemeController>().toggleTheme(),
-                  icon: Icon(
-                    Icons.brightness_6,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                  ),
+                padding: const EdgeInsets.only(top: 8, right: 8),
+                child: ThemeToggleButton(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  padding: EdgeInsets.zero,
                 ),
               ),
             ),
