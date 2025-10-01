@@ -1,30 +1,24 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-
-// Fondo + círculo
-import '../widgets/background.dart';
-import '../circle_state.dart';
-
-// Appwrite
-import 'package:appwrite/appwrite.dart';
-import '../config/environment.dart';
-
-// Rive
+import 'package:get/get.dart';
 import 'package:rive/rive.dart';
 
-// Botón de tema
-import '../widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/background.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
+import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 
 class RegisterScreen extends StatefulWidget {
-  final CircleStateNotifier circleNotifier;
   const RegisterScreen({super.key, required this.circleNotifier});
+
+  final CircleStateNotifier circleNotifier;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // -------- Form --------
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -35,45 +29,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePwd = true;
 
-  // -------- Appwrite --------
-  late final Client _client;
-  late final Account _account;
+  final AuthController _auth = Get.find<AuthController>();
 
-  // -------- Rive --------
   Artboard? _artboard;
-  SMIInput<double>? _iAnim; // único input numérico: "animacion"
+  SMIInput<double>? _iAnim;
 
-  // Estados (coinciden con tu .riv)
-  static const double kIdle = 0;
-  static const double kCorreo = 1;
-  static const double kContrasena = 2;
-  static const double kNoRegistrado = 3;
-  static const double kRegistrado = 4;
+  static const double _kIdle = 0;
+  static const double _kCorreo = 1;
+  static const double _kContrasena = 2;
+  static const double _kNoRegistrado = 3;
+  static const double _kRegistrado = 4;
 
   @override
   void initState() {
     super.initState();
-
-    _client = Client()
-      ..setEndpoint(Environment.appwritePublicEndpoint)
-      ..setProject(Environment.appwriteProjectId);
-    _account = Account(_client);
-
     _loadRive();
 
     _emailFocus.addListener(() {
       if (_emailFocus.hasFocus) {
-        _setAnim(kCorreo);
+        _setAnim(_kCorreo);
       } else if (!_pwdFocus.hasFocus) {
-        _setAnim(kIdle);
+        _setAnim(_kIdle);
       }
     });
 
     _pwdFocus.addListener(() {
       if (_pwdFocus.hasFocus) {
-        _setAnim(kContrasena);
+        _setAnim(_kContrasena);
       } else if (!_emailFocus.hasFocus) {
-        _setAnim(kIdle);
+        _setAnim(_kIdle);
       }
     });
   }
@@ -88,7 +72,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // -------- Rive --------
   Future<void> _loadRive() async {
     try {
       final file = await RiveFile.asset('assets/rive/registro.riv');
@@ -102,24 +85,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (controller != null) {
         art.addController(controller);
         _iAnim = controller.findInput<double>('animacion');
-        _setAnim(kIdle);
+        _setAnim(_kIdle);
       }
 
       setState(() => _artboard = art);
     } catch (e) {
-      debugPrint('Error cargando Rive registro: $e');
+      debugPrint('Error cargando Rive registro: ${e.toString()}');
     }
   }
 
-  void _setAnim(double v) {
+  void _setAnim(double value) {
     if (_iAnim == null) return;
-    _iAnim!.value = v;
+    _iAnim!.value = value;
   }
 
-  // -------- Registro --------
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) {
-      _setAnim(kNoRegistrado);
+      _setAnim(_kNoRegistrado);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Revisa los campos del formulario.')),
       );
@@ -129,52 +111,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _account.create(
-        userId: ID.unique(),
+      final user = await _auth.signUp(
         email: _emailCtrl.text.trim(),
         password: _pwdCtrl.text.trim(),
-        name: _nameCtrl.text.trim(),
+        fullName: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
       );
 
       if (!mounted) return;
 
-      _setAnim(kRegistrado);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('✅ Registro exitoso')));
+      _setAnim(_kRegistrado);
+      final message = user.emailConfirmed
+          ? 'Registro exitoso.'
+          : 'Registro exitoso. Revisa tu correo para confirmar la cuenta.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
 
       await Future.delayed(const Duration(milliseconds: 1200));
 
       widget.circleNotifier.moveToBottom();
       if (mounted) Navigator.pop(context);
+    } on AppFailure catch (e) {
+      if (!mounted) return;
+      _setAnim(_kNoRegistrado);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
     } catch (e) {
       if (!mounted) return;
-      _setAnim(kNoRegistrado);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+      _setAnim(_kNoRegistrado);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error inesperado: ${e.toString()}')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // -------- UI --------
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final w = MediaQuery.of(context).size.width;
-    final h = MediaQuery.of(context).size.height;
+    final colorScheme = Theme.of(context).colorScheme;
+    final size = MediaQuery.of(context).size;
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    final double riveHeight = h * 0.96;
+    final double riveHeight = size.height * 0.96;
     final double riveYOffset = 250;
     final double cardBottom = bottomInset + 200;
 
     return Scaffold(
       body: Stack(
         children: [
-          Background(animateCircle: true),
-
+          const Background(animateCircle: true),
           if (_artboard != null)
             Positioned(
               left: 0,
@@ -188,7 +176,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
             ),
-
           Positioned(
             left: 0,
             right: 0,
@@ -197,14 +184,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Container(
-                  width: w * 0.9,
+                  width: size.width * 0.9,
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
                   decoration: BoxDecoration(
-                    color: cs.surface,
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(.45),
+                        color: Colors.black.withOpacity(0.45),
                         blurRadius: 18,
                         offset: const Offset(4, 8),
                       ),
@@ -220,76 +207,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           'Crear Cuenta',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: cs.onSurface,
+                            color: colorScheme.onSurface,
                             fontSize: 26,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 18),
-
                         _label('Nombre:'),
+                        const SizedBox(height: 8),
                         _textField(
                           controller: _nameCtrl,
-                          hint: 'Ingrese su nombre',
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Escribe tu nombre'
-                              : null,
+                          hint: 'Nombre completo',
+                          onTapExtra: () => _setAnim(_kIdle),
                         ),
-                        const SizedBox(height: 14),
-
-                        _label('Correo electrónico:'),
+                        const SizedBox(height: 16),
+                        _label('Correo electronico:'),
+                        const SizedBox(height: 8),
                         _textField(
                           controller: _emailCtrl,
-                          focusNode: _emailFocus,
                           keyboard: TextInputType.emailAddress,
-                          hint: 'tucorreo@ejemplo.com',
-                          validator: (v) {
-                            final t = v?.trim() ?? '';
-                            if (t.isEmpty) return 'Escribe tu correo';
-                            if (!t.contains('@') || !t.contains('.')) {
-                              return 'Correo no válido';
+                          hint: 'correo@ejemplo.com',
+                          focusNode: _emailFocus,
+                          validator: (value) {
+                            final email = value?.trim() ?? '';
+                            if (email.isEmpty) return 'Escribe un correo valido';
+                            if (!email.contains('@') || !email.contains('.')) {
+                              return 'Correo no valido';
                             }
                             return null;
                           },
-                          onTapExtra: () => _setAnim(kCorreo),
-                          onChangedExtra: (_) => _setAnim(kCorreo),
+                          onChangedExtra: (_) => _setAnim(_kCorreo),
                         ),
-                        const SizedBox(height: 14),
-
-                        _label('Contraseña:'),
+                        const SizedBox(height: 16),
+                        _label('Contrasena:'),
+                        const SizedBox(height: 8),
                         _textField(
                           controller: _pwdCtrl,
                           focusNode: _pwdFocus,
-                          hint: 'Mínimo 6 caracteres',
                           obscure: _obscurePwd,
+                          hint: 'Minimo 8 caracteres',
                           suffix: IconButton(
-                            onPressed: () {
-                              setState(() => _obscurePwd = !_obscurePwd);
-                              _setAnim(kContrasena);
-                            },
+                            onPressed: () => setState(() {
+                              _obscurePwd = !_obscurePwd;
+                              _setAnim(_kContrasena);
+                            }),
                             icon: Icon(
                               _obscurePwd
                                   ? Icons.visibility_off
                                   : Icons.visibility,
-                              color: cs.onSurface.withOpacity(.7),
+                              color: colorScheme.onSurface.withOpacity(0.7),
                             ),
                           ),
-                          validator: (v) {
-                            final t = v ?? '';
-                            if (t.isEmpty) return 'Escribe una contraseña';
-                            if (t.length < 6) return 'Mínimo 6 caracteres';
+                          validator: (value) {
+                            final pwd = value?.trim() ?? '';
+                            if (pwd.isEmpty) return 'Escribe una contrasena';
+                            if (pwd.length < 8) return 'Minimo 8 caracteres';
                             return null;
                           },
-                          onTapExtra: () => _setAnim(kContrasena),
-                          onChangedExtra: (_) => _setAnim(kContrasena),
+                          onTapExtra: () => _setAnim(_kContrasena),
+                          onChangedExtra: (_) => _setAnim(_kContrasena),
                         ),
                         const SizedBox(height: 20),
-
                         _isLoading
                             ? const Center(child: CircularProgressIndicator())
                             : ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: cs.primary,
+                                  backgroundColor: colorScheme.primary,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 14,
                                   ),
@@ -301,20 +284,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 child: Text(
                                   'Registrarse',
                                   style: TextStyle(
-                                    color: cs.onPrimary,
+                                    color: colorScheme.onPrimary,
                                     fontSize: 17,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
                         const SizedBox(height: 10),
-
                         TextButton(
                           onPressed: () {
                             widget.circleNotifier.moveToBottom();
                             Navigator.pop(context);
                           },
-                          child: const Text('¿Ya tienes cuenta? Inicia sesión'),
+                          child: const Text('Ya tienes cuenta? Inicia sesion'),
                         ),
                       ],
                     ),
@@ -323,15 +305,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-
-          // Toggle de tema (no usa AppBar → sin overflow)
           SafeArea(
             child: Align(
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.only(top: 6, right: 8),
                 child: ThemeToggleButton(
-                  color: cs.onPrimary,
+                  color: colorScheme.onPrimary,
                   padding: EdgeInsets.zero,
                 ),
               ),
@@ -386,8 +366,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderSide: BorderSide(color: cs.outline.withOpacity(.35)),
         ),
       ),
-      onTap: () => onTapExtra?.call(),
-      onChanged: (v) => onChangedExtra?.call(v),
+      onTap: onTapExtra,
+      onChanged: onChangedExtra,
     );
   }
 }

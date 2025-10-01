@@ -1,51 +1,64 @@
-// lib/screens/home_page.dart
+// lib/features/home/presentation/pages/home_page.dart
 import 'package:flutter/material.dart';
-import 'package:appwrite/appwrite.dart';
 import 'package:get/get.dart';
-
-import 'login_screen.dart';
-import '../circle_state.dart';
-import '../widgets/theme_toggle_button.dart';
-import 'devices_page.dart';
-import 'provisioning_screen.dart';
+import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/domain/entities/auth_user.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/infrastructure/deeplink_service.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/pages/login_screen.dart';
+import 'package:flutter_seguridad_en_casa/screens/devices_page.dart';
+import 'package:flutter_seguridad_en_casa/screens/provisioning_screen.dart';
 
 class HomePage extends StatefulWidget {
-  final Account account;
-  final CircleStateNotifier circleNotifier;
+  const HomePage({super.key, required this.circleNotifier});
 
-  const HomePage({
-    super.key,
-    required this.account,
-    required this.circleNotifier,
-  });
+  final CircleStateNotifier circleNotifier;
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
+  final AuthController _auth = Get.find<AuthController>();
+
+  AuthUser? get _user => _auth.currentUser.value;
+
+  String get _welcomeName {
+    final user = _user;
+    if (user == null) return 'Usuario';
+    if (user.name != null && user.name!.trim().isNotEmpty) {
+      return user.name!.trim();
+    }
+    return user.email;
+  }
+
   Future<void> _logout() async {
     try {
-      await widget.account.deleteSession(sessionId: 'current');
+      await _auth.signOut();
+      DeeplinkService().clearHistory();
       if (mounted) {
         Get.offAll(() => LoginScreen(circleNotifier: widget.circleNotifier));
       }
+    } on AppFailure catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error al cerrar sesión: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cerrar sesion: ' + e.toString())),
+        );
       }
     }
   }
 
-  void _goToDevices() {
-    Get.to(() => const DevicesPage());
-  }
+  void _goToDevices() => Get.to(() => const DevicesPage());
 
-  void _goToProvisioning() {
-    Get.to(() => const ProvisioningScreen());
-  }
+  void _goToProvisioning() => Get.to(() => const ProvisioningScreen());
 
   @override
   Widget build(BuildContext context) {
@@ -53,14 +66,14 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Página Principal"),
+        title: Text('Bienvenido, $_welcomeName'),
         backgroundColor: cs.primary,
         actions: [
           const ThemeToggleButton(),
           IconButton(
             onPressed: _logout,
             icon: const Icon(Icons.logout),
-            tooltip: "Cerrar Sesión",
+            tooltip: 'Cerrar sesion',
           ),
         ],
       ),
@@ -71,13 +84,11 @@ class _HomePageState extends State<HomePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                "Bienvenido 🚀",
+                'Panel principal',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
-
-              // Buscar / administrar dispositivos en LAN (mDNS)
               ElevatedButton.icon(
                 onPressed: _goToDevices,
                 icon: const Icon(Icons.devices_other),
@@ -94,10 +105,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              // Reconocer/Provisionar dispositivo (SoftAP)
               OutlinedButton.icon(
                 onPressed: _goToProvisioning,
                 icon: const Icon(Icons.wifi_tethering),
@@ -121,3 +129,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+

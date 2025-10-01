@@ -1,96 +1,62 @@
 # Casa Segura (flutter_casa_segura)
 
-Aplicación Flutter para un sistema de seguridad doméstica que se integrará con módulos ESP32. El proyecto actualmente implementa autenticación (Appwrite), UI básica de login/registro, y pantallas principales para la app. Esta documentación describe la estructura actual, cómo ejecutar el proyecto y pautas de integración con los ESP32.
+Aplicacion Flutter para un sistema de seguridad domestica con ESP32. La app usa Supabase como backend de autenticacion y esta organizada bajo una estructura de clean architecture (core + features).
 
 ## Resumen
-- Framework: Flutter (soporta Android / iOS / Web / Desktop).
-- Backend de autenticación: Appwrite (email/password y OAuth).
-- Integración hardware prevista: módulos ESP32 (MQTT / HTTP / WebSocket).
-- Estado actual: UI de login/registro, home con cierre de sesión y servicios Appwrite básicos.
+- Framework: Flutter (Android / iOS / Web / Desktop).
+- Backend de autenticacion: Supabase (email/password con verificacion por correo).
+- Integracion prevista: modulos ESP32 (MQTT / HTTP / WebSocket).
+- Estado actual: flujo completo de login/registro/reset con Supabase, pantalla principal, descubrimiento LAN y pantallas de provisionamiento.
 
 ## Estructura principal
-- [lib/main.dart](lib/main.dart) — punto de entrada; define [`MyApp`](lib/main.dart).  
-- [lib/screens/login_screen.dart](lib/screens/login_screen.dart) — pantalla de login; componente [`LoginScreen`](lib/screens/login_screen.dart).  
-- [lib/screens/register_screen.dart](lib/screens/register_screen.dart) — pantalla de registro; componente [`RegisterScreen`](lib/screens/register_screen.dart).  
-- [lib/screens/home_page.dart](lib/screens/home_page.dart) — pantalla principal después del login; componente [`HomePage`](lib/screens/home_page.dart).  
-- [lib/services/appwrite_service.dart](lib/services/appwrite_service.dart) — cliente simple para Appwrite: [`AppwriteService`](lib/services/appwrite_service.dart).  
-- [lib/config/environment.dart](lib/config/environment.dart) — configuración pública del proyecto Appwrite: [`Environment`](lib/config/environment.dart).  
-- [lib/circle_state.dart](lib/circle_state.dart) — estado/animaciones reutilizables: [`CircleStateNotifier`](lib/circle_state.dart).  
-- [lib/widgets/background.dart](lib/widgets/background.dart) — widget de fondo animado: [`Background`](lib/widgets/background.dart).
+- `lib/main.dart`: punto de entrada; inicializa dotenv, Hive, Supabase y bindings (`AuthBinding`).
+- `lib/core/`: configuraciones y utilidades compartidas (p. ej. `core/config/environment.dart`, `core/state/circle_state.dart`, `core/presentation/widgets`).
+- `lib/features/auth/`: modulo de autenticacion (domain/data/usecases/controller + paginas de login/register/forgot/reset y `infrastructure/deeplink_service.dart`).
+- `lib/features/home/`: pagina principal despues del login.
+- `lib/screens/`: pantallas restantes aun por migrar (devices, provisioning, splash).
+- `lib/data/local/app_db.dart`: capa local con SQLite (sqflite) para dispositivos/eventos.
+- `supabase/schema.sql`: script SQL para preparar tablas/policies en Supabase.
 
-## Qué hace hoy la app
-- Registro de usuarios contra Appwrite (email/password). Ver [`RegisterScreen`](lib/screens/register_screen.dart).
-- Login con email/password y OAuth (Google/GitHub) usando flujo de callback web (FlutterWebAuth2). Ver [`LoginScreen`](lib/screens/login_screen.dart).
-- Sesión de usuario con Appwrite y cierre de sesión (en [`HomePage`](lib/screens/home_page.dart)).
-- Servicio de ejemplo para encapsular llamadas a Appwrite: [`AppwriteService`](lib/services/appwrite_service.dart).
-- Variables de entorno del cliente Appwrite en [`Environment`](lib/config/environment.dart).
-
-## Configuración necesaria
-1. Instalar Flutter (compatible con la versión usada en el proyecto).
-2. Dependencias del proyecto: ejecutar
-   ```sh
-   flutter pub get
+## Configuracion
+1. Instalar Flutter (version estable 3.9.x o compatible).
+2. Clonar el repo y posicionarse en `flutter_casa_segura`.
+3. Crear un archivo `.env` en la raiz con:
+   ```env
+   SUPABASE_URL=https://xqmydyesafnhomhzewsq.supabase.co
+   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxbXlkeWVzYWZuaG9taHpld3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyNzY0OTgsImV4cCI6MjA3NDg1MjQ5OH0.YFteDpgiU87dwNq2PIaDrm28h5w6nu0T0mLEUjmTrmU
+   SUPABASE_RESET_REDIRECT=casasegura://reset
    ```
-3. Configurar Appwrite:
-   - Ajustar `lib/config/environment.dart` con tu endpoint y projectId si es distinto. Actualmente usa:
-     - projectId en [`Environment`](lib/config/environment.dart).
-     - endpoint en [`Environment`](lib/config/environment.dart).
-   - Asegurar que en Appwrite estén habilitados: Accounts, OAuth providers (Google/GitHub) y CORS/redirecciones necesarias para FlutterWebAuth2.
+   (ajusta URL/keys y el esquema de deep link segun tu proyecto).
+4. Ejecutar `flutter pub get`.
+5. En tu proyecto Supabase, ejecutar el SQL de `supabase/schema.sql` para crear la tablas `profiles` y `devices`, las politicas RLS y los triggers de sincronizacion.
+6. Configurar en Supabase el redirect URL `casasegura://reset` en Authentication -> URL Configuration.
 
-## Ejecutar la app
-- Modo debug en dispositivo/emulador:
-  ```sh
-  flutter run
-  ```
-- Web:
-  ```sh
-  flutter run -d chrome
-  ```
-- Desktop (si tienes las toolchains):
-  ```sh
-  flutter run -d windows   # o macos / linux
-  ```
+## Ejecutar
+```sh
+flutter run          # android/ios/web/desktop segun dispositivo
+```
 
-## Autenticación
-- Email/password: implementado en [`LoginScreen`](lib/screens/login_screen.dart) y [`RegisterScreen`](lib/screens/register_screen.dart) usando Appwrite SDK.
-- OAuth: el flujo abre el navegador y recibe fragmento con `userId` y `secret`, luego crea la sesión con Appwrite (ver implementación en [`LoginScreen`](lib/screens/login_screen.dart)).
+## Autenticacion
+- `AuthBinding` registra `AuthController` con los usecases (`SignInWithEmail`, `SignUpWithEmail`, `SendPasswordReset`, `UpdatePassword`, `SignOut`).
+- `AuthController` expone metodos para login, registro, cambio de contrasena y logout; los widgets llaman al controller y muestran mensajes con `AppFailure` en caso de error.
+- `DeeplinkService` procesa el enlace de recuperacion (`casasegura://reset#...`) y llama a `SupabaseClient.auth.getSessionFromUrl` antes de navegar a `ResetPasswordScreen`.
+- `ForgotPasswordScreen` envia el correo de recuperacion y `ResetPasswordScreen` actualiza la contrasena y cierra sesion.
 
-## Integración con ESP32 (guía rápida)
-Objetivo: recibir eventos (sensores, alarmas) y enviar comandos a los ESP32 desde la app.
+## Clean architecture (resumen)
+- **core/**: piezas compartidas (config, widgets, state, errores).
+- **features/auth/**: capas domain/data/presentation, controller con usecases y paginas UI.
+- **features/home/**: pagina principal (logout usa `AuthController`).
+- Otras pantallas aun viven en `lib/screens/` y pueden migrarse gradualmente.
 
-Opciones recomendadas:
-1. MQTT (recomendado para telemetría y control en tiempo real)
-   - Correr un broker (ej. Mosquitto) en red local o en la nube.
-   - ESP32 se conecta al broker y publica/suscribe a topics (ej. casa/puerta, casa/motion).
-   - La app Flutter puede usar paquetes MQTT (p.ej. mqtt_client) para suscribirse/ publicar a topics.
-   - Seguridad: usar autenticación en el broker y TLS si es público.
+## Recursos para ESP32
+- `lib/services/lan_discovery_service.dart`: deteccion via mDNS.
+- `lib/services/provisioning_service.dart`: provisionamiento SoftAP.
+- `lib/screens/devices_page.dart` y `lib/screens/provisioning_screen.dart`: UI para estas funciones.
 
-2. HTTP/REST
-   - ESP32 expone endpoints REST y la app hace peticiones HTTP.
-   - Adecuado para comandos puntuales pero menos eficiente para datos en tiempo real.
+## Siguientes pasos sugeridos
+- Migrar las pantallas restantes a la estructura de features.
+- A�adir tests unitarios e instrumentados para auth y servicios LAN.
+- Integrar MQTT/WebSocket con los modulos ESP32.
+- Crear workflows de CI/CD y definir una licencia.
 
-3. WebSocket
-   - Para comunicación bidireccional en tiempo real sin broker externo.
 
-Sugerencias:
-- Definir mensajes JSON estándar (p. ej. { "deviceId": "...", "type": "motion", "value": true }).
-- Autenticación: usar tokens firmados si los módulos se exponen públicamente.
-- Para telemetría histórica y control de reglas, considerar integrar Appwrite Databases o una función/servicio backend que reciba eventos desde los ESP32 y notifique a la app (webhooks o push).
-
-## Buenas prácticas y próximos pasos
-- Mover valores sensibles a variables de entorno (no subir secretos).
-- Añadir manejo de errores más robusto en los servicios (retry, logs).
-- Implementar tests unitarios y widget tests (hay un ejemplo en `test/widget_test.dart`).
-- Añadir soporte y documentación para flujos ESP32 concretos (ejemplos de firmware y topics MQTT).
-- Considerar usar Appwrite Functions para procesar eventos entrantes desde ESP32 y almacenar registros.
-
-## Recursos en el repo
-- Código principal: [lib/main.dart](lib/main.dart) (`MyApp`)  
-- Login: [lib/screens/login_screen.dart](lib/screens/login_screen.dart) (`LoginScreen`)  
-- Registro: [lib/screens/register_screen.dart](lib/screens/register_screen.dart) (`RegisterScreen`)  
-- Home: [lib/screens/home_page.dart](lib/screens/home_page.dart) (`HomePage`)  
-- Servicio Appwrite: [lib/services/appwrite_service.dart](lib/services/appwrite_service.dart) (`AppwriteService`)  
-- Config: [lib/config/environment.dart](lib/config/environment.dart) (`Environment`)  
-
-## Licencia
-- Proyecto inicial sin licencia especificada. Añadir LICENSE si procede.

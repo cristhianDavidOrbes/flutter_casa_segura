@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../controllers/theme_controller.dart';
+import 'package:flutter_seguridad_en_casa/controllers/theme_controller.dart';
 
 class ThemeToggleButton extends StatelessWidget {
   final Color? color;

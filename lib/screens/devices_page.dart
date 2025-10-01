@@ -5,10 +5,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import '../widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import '../services/lan_discovery_service.dart';
-import '../data/local/app_db.dart';
-import 'device_detail_page.dart'; // <-- navegación a detalle
+import 'device_detail_page.dart';
 
 class DevicesPage extends StatefulWidget {
   const DevicesPage({super.key});
@@ -19,6 +19,7 @@ class DevicesPage extends StatefulWidget {
 
 class _DevicesPageState extends State<DevicesPage> {
   final _discovery = LanDiscoveryService();
+  final DeviceRepository _repository = DeviceRepository.instance;
 
   bool _scanning = false;
   Timer? _autoTimer;
@@ -38,37 +39,21 @@ class _DevicesPageState extends State<DevicesPage> {
     super.dispose();
   }
 
-  String _normKey(String s) {
-    final k = s.toLowerCase().trim();
-    return k.endsWith('.local') ? k.substring(0, k.length - 6) : k;
-  }
-
-  String _keyForDiscovered(DiscoveredDevice d) {
-    if (d.name.trim().isNotEmpty) return _normKey(d.name);
-    return _normKey(d.id);
-  }
-
-  bool _recent(int? lastSeenMs) {
-    if (lastSeenMs == null) return false;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return (now - lastSeenMs) <= 8000;
-  }
-
   Future<bool> _isOnLan() async {
     try {
-      final ifaces = await NetworkInterface.list(
+      final interfaces = await NetworkInterface.list(
         includeLoopback: false,
         type: InternetAddressType.IPv4,
       );
-      for (final i in ifaces) {
-        for (final a in i.addresses) {
-          final ip = a.address;
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          final ip = addr.address;
           if (ip.startsWith('10.') || ip.startsWith('192.168.')) return true;
           if (ip.startsWith('172.')) {
-            final p = ip.split('.');
-            if (p.length >= 2) {
-              final sec = int.tryParse(p[1]) ?? -1;
-              if (sec >= 16 && sec <= 31) return true;
+            final parts = ip.split('.');
+            if (parts.length >= 2) {
+              final second = int.tryParse(parts[1]) ?? -1;
+              if (second >= 16 && second <= 31) return true;
             }
           }
         }
@@ -87,77 +72,58 @@ class _DevicesPageState extends State<DevicesPage> {
     if (!onLan) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Conéctate a una red Wi-Fi primero.')),
+          const SnackBar(content: Text('Conectate a una red Wi-Fi primero.')),
         );
       }
       setState(() => _scanning = false);
       return;
     }
 
-    // 1) Descubrir
-    List<DiscoveredDevice> found = const [];
+    List<DiscoveredDevice> discovered = const [];
     try {
-      found = await _discovery.discover(timeout: const Duration(seconds: 4));
-    } catch (_) {}
-
-    final db = AppDb.instance;
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    // 2) Upsert + touch por host (dedupe)
-    final seenKeys = <String, _OnlineHit>{};
-    for (final d in found) {
-      final key = _keyForDiscovered(d);
-      seenKeys[key] = _OnlineHit(ip: d.ip, type: d.type, name: d.name);
-
-      await db.upsertDeviceByDeviceId(
-        deviceId: key,
-        name: d.name.isNotEmpty ? d.name : key,
-        type: d.type,
-        ip: d.ip,
-        addedAt: now,
+      discovered = await _discovery.discover(
+        timeout: const Duration(seconds: 4),
       );
-      await db.touchDeviceSeen(key, ip: d.ip);
+    } catch (e) {
+      debugPrint('Error en discover: $e');
     }
 
-    // 3) Pintar DB + marcar online
-    final devices = await db.fetchAllDevices();
+    final hits = <String, _OnlineHit>{};
+    for (final device in discovered) {
+      final key = _repository.normalizeKey(
+        device.name.isNotEmpty ? device.name : device.id,
+      );
+      hits[key] = _OnlineHit(ip: device.ip, type: device.type, name: device.name);
+    }
+
+    try {
+      await _repository.syncDiscovered(discovered);
+    } catch (e) {
+      debugPrint('Error sincronizando con Supabase: $e');
+    }
+
+    List<DeviceRecord> devices = const [];
+    try {
+      devices = await _repository.listDevices();
+    } catch (e) {
+      debugPrint('Error obteniendo dispositivos: $e');
+    }
+
     final rows = <_Row>[];
-    for (final dev in devices) {
-      final key = _normKey(dev.deviceId);
-      final hit = seenKeys[key];
+    for (final device in devices) {
+      final hit = hits[device.deviceKey];
+            final lastSeen = hit != null ? DateTime.now() : (device.lastSeenAt ?? device.addedAt);
       rows.add(
         _Row(
-          key: key,
-          title: dev.name,
-          ip: hit?.ip ?? dev.ip,
-          type: dev.type,
-          online: _recent(dev.lastSeenAt),
-          lastSeenAt: dev.lastSeenAt,
+          key: device.deviceKey,
+          title: device.name,
+          ip: hit?.ip ?? device.ip,
+          type: device.type,
+          online: hit != null,
+          lastSeenAt: lastSeen,
         ),
       );
     }
-
-    // 4) Cualquier hallazgo no presente (muy raro)
-    for (final e in seenKeys.entries) {
-      if (!rows.any((r) => r.key == e.key)) {
-        rows.add(
-          _Row(
-            key: e.key,
-            title: e.value.name ?? e.key,
-            ip: e.value.ip,
-            type: e.value.type ?? 'esp',
-            online: true,
-            lastSeenAt: now,
-          ),
-        );
-      }
-    }
-
-    // Orden: online primero
-    rows.sort((a, b) {
-      if (a.online != b.online) return a.online ? -1 : 1;
-      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-    });
 
     if (!mounted) return;
     setState(() {
@@ -167,30 +133,30 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 
   Future<void> _forget(_Row row) async {
-    // 1) Intento fuerte de poner el equipo en AP
     final tries = <Uri>[
       if ((row.ip ?? '').isNotEmpty) Uri.parse('http://${row.ip}/apmode'),
       Uri.parse('http://${row.key}.local/apmode'),
       if ((row.ip ?? '').isNotEmpty) Uri.parse('http://${row.ip}/factory'),
       Uri.parse('http://${row.key}.local/factory'),
     ];
-    for (final u in tries) {
+    for (final uri in tries) {
       try {
-        await http.get(u).timeout(const Duration(seconds: 3));
+        await http.get(uri).timeout(const Duration(seconds: 3));
         break;
       } catch (_) {}
     }
 
-    // 2) Limpiamos BD en todas las variantes de clave
-    final db = AppDb.instance;
-    await db.deleteDeviceByDeviceId(row.key);
-    await db.deleteDeviceByDeviceId('${row.key}.local');
+    try {
+      await _repository.forget(row.key);
+    } catch (e) {
+      debugPrint('Error eliminando dispositivo en Supabase: $e');
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Dispositivo olvidado. En pocos segundos debería encender su AP “CASA-ESP_xxxx”.',
+            'Dispositivo olvidado. En pocos segundos deberia encender su AP CASA-ESP_xxxx.',
           ),
         ),
       );
@@ -218,56 +184,42 @@ class _DevicesPageState extends State<DevicesPage> {
               onTap: _runScan,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.search),
-                hintText: _scanning ? 'Buscando…' : 'Buscar en la red',
-                suffixIcon: _scanning
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : IconButton(
-                        tooltip: 'Buscar ahora',
-                        icon: const Icon(Icons.refresh),
-                        onPressed: _runScan,
-                      ),
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                hintText: _scanning ? 'Buscando...' : 'Buscar en la red',
+                suffixIcon: IconButton(
+                  onPressed: _runScan,
+                  icon: const Icon(Icons.refresh),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Expanded(
             child: _rows.isEmpty
                 ? Center(
                     child: Text(
                       _scanning
-                          ? 'Buscando dispositivos…'
-                          : 'No hay dispositivos guardados todavía.',
+                          ? 'Buscando dispositivos...'
+                          : 'No hay dispositivos guardados todavia.',
                       style: TextStyle(color: cs.onSurfaceVariant),
                     ),
                   )
                 : ListView.separated(
                     itemCount: _rows.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, i) {
-                      final r = _rows[i];
-                      final chipColor = r.online ? Colors.green : cs.outline;
-                      final chipText = r.online ? 'Conectado' : 'Desconectado';
+                    itemBuilder: (context, index) {
+                      final row = _rows[index];
+                      final chipColor = row.online ? Colors.green : cs.outline;
+                      final chipText = row.online ? 'Conectado' : 'Desconectado';
 
                       return ListTile(
                         leading: Icon(Icons.memory, color: chipColor),
                         title: Text(
-                          r.title,
+                          row.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          '${r.ip ?? '—'}  •  ${r.type}',
+                          '${row.ip ?? '-'} | ${row.type}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -280,19 +232,19 @@ class _DevicesPageState extends State<DevicesPage> {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: r.online
+                                color: row.online
                                     ? Colors.green.withOpacity(.12)
                                     : cs.surfaceVariant,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: r.online ? Colors.green : cs.outline,
+                                  color: row.online ? Colors.green : cs.outline,
                                   width: 1,
                                 ),
                               ),
                               child: Text(
                                 chipText,
                                 style: TextStyle(
-                                  color: r.online
+                                  color: row.online
                                       ? Colors.green
                                       : cs.onSurfaceVariant,
                                   fontWeight: FontWeight.w600,
@@ -302,8 +254,8 @@ class _DevicesPageState extends State<DevicesPage> {
                             const SizedBox(width: 6),
                             PopupMenuButton<String>(
                               tooltip: 'Opciones',
-                              onSelected: (v) {
-                                if (v == 'forget') _forget(r);
+                              onSelected: (value) {
+                                if (value == 'forget') _forget(row);
                               },
                               itemBuilder: (_) => const [
                                 PopupMenuItem(
@@ -314,17 +266,15 @@ class _DevicesPageState extends State<DevicesPage> {
                             ),
                           ],
                         ),
-
-                        // === NAVEGACIÓN AL DETALLE ===
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => DeviceDetailPage(
-                                deviceId: r.key,
-                                name: r.title,
-                                type: r.type,
-                                ip: r.ip,
-                                lastSeenAt: r.lastSeenAt,
+                                deviceId: row.key,
+                                name: row.title,
+                                type: row.type,
+                                ip: row.ip,
+                                lastSeenAt: row.lastSeenAt,
                               ),
                             ),
                           );
@@ -337,7 +287,7 @@ class _DevicesPageState extends State<DevicesPage> {
           Padding(
             padding: const EdgeInsets.only(bottom: 14, left: 16, right: 16),
             child: Text(
-              'Tip: “Desconectar (olvidar)” elimina el equipo de la app y le pide entrar en AP. '
+              'Tip: "Desconectar (olvidar)" elimina el equipo de la app y le pide entrar en AP. '
               'Para volver a usarlo, provisiona otra vez por SoftAP.',
               textAlign: TextAlign.center,
               style: TextStyle(color: cs.onSurfaceVariant),
@@ -350,14 +300,7 @@ class _DevicesPageState extends State<DevicesPage> {
 }
 
 class _Row {
-  final String key; // device_id normalizado
-  final String title; // nombre visible
-  final String? ip;
-  final String type;
-  final bool online;
-  final int? lastSeenAt;
-
-  _Row({
+  const _Row({
     required this.key,
     required this.title,
     required this.ip,
@@ -365,11 +308,24 @@ class _Row {
     required this.online,
     required this.lastSeenAt,
   });
+
+  final String key;
+  final String title;
+  final String? ip;
+  final String type;
+  final bool online;
+  final DateTime lastSeenAt;
 }
 
 class _OnlineHit {
+  const _OnlineHit({this.ip, this.type, this.name});
+
   final String? ip;
   final String? type;
   final String? name;
-  _OnlineHit({this.ip, this.type, this.name});
 }
+
+
+
+
+

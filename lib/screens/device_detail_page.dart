@@ -21,7 +21,7 @@ class DeviceDetailPage extends StatefulWidget {
   final String name;
   final String type; // "esp", "esp32cam", etc.
   final String? ip;
-  final int? lastSeenAt;
+  final DateTime? lastSeenAt;
 
   @override
   State<DeviceDetailPage> createState() => _DeviceDetailPageState();
@@ -29,9 +29,9 @@ class DeviceDetailPage extends StatefulWidget {
 
 class _DeviceDetailPageState extends State<DeviceDetailPage> {
   bool get _online {
-    if (widget.lastSeenAt == null) return false;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    return (now - widget.lastSeenAt!) <= 8000; // mismo criterio que DevicesPage
+        if (widget.lastSeenAt == null) return false;
+    return DateTime.now().difference(widget.lastSeenAt!) <=
+        const Duration(seconds: 8); // mismo criterio que DevicesPage
   }
 
   String get _displayHost => widget.ip ?? '${widget.deviceId}.local';
@@ -160,10 +160,10 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                     _kv(
                       'Visto por última vez',
                       widget.lastSeenAt != null
-                          ? DateTime.fromMillisecondsSinceEpoch(
-                              widget.lastSeenAt!,
-                            ).toIso8601String()
-                          : '—',
+                          ? widget.lastSeenAt!
+                              .toLocal()
+                              .toIso8601String()
+                          : '--',
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -483,3 +483,4 @@ class _MjpegViewState extends State<_MjpegView> {
     return Image.memory(_lastFrame!, gaplessPlayback: true, fit: BoxFit.cover);
   }
 }
+

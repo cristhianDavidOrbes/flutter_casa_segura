@@ -1,62 +1,127 @@
 import 'package:flutter/foundation.dart';
-import '../data/local/app_db.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../services/lan_discovery_service.dart';
 import '../services/device_control_service.dart';
+import '../services/lan_discovery_service.dart';
+
+class DeviceRecord {
+  const DeviceRecord({
+    required this.deviceKey,
+    required this.name,
+    required this.type,
+    this.ip,
+    required this.addedAt,
+    this.lastSeenAt,
+  });
+
+  final String deviceKey;
+  final String name;
+  final String type;
+  final String? ip;
+  final DateTime addedAt;
+  final DateTime? lastSeenAt;
+
+  static DeviceRecord fromMap(Map<String, dynamic> map) {
+    return DeviceRecord(
+      deviceKey: map['device_key'] as String,
+      name: map['name'] as String? ?? '',
+      type: map['type'] as String? ?? 'unknown',
+      ip: map['ip'] as String?,
+      addedAt: DateTime.parse(map['added_at'] as String),
+      lastSeenAt: map['last_seen_at'] != null
+          ? DateTime.parse(map['last_seen_at'] as String)
+          : null,
+    );
+  }
+}
 
 class DeviceRepository {
   DeviceRepository._();
   static final DeviceRepository instance = DeviceRepository._();
 
-  final _db = AppDb.instance;
+  final SupabaseClient _client = Supabase.instance.client;
 
-  String _normKey(String? deviceId, String? host, String ip) {
-    final k = (deviceId ?? host ?? ip).trim();
-    return k.toLowerCase();
+  String get _userId {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('No hay usuario autenticado');
+    }
+    return userId;
+  }
+
+  String normalizeKey(String value) {
+    final k = value.toLowerCase().trim();
+    return k.endsWith('.local') ? k.substring(0, k.length - 6) : k;
+  }
+
+  Future<void> syncDiscovered(List<DiscoveredDevice> devices) async {
+    if (devices.isEmpty) return;
+    final userId = _userId;
+    final now = DateTime.now().toUtc();
+
+    final payload = <Map<String, dynamic>>[];
+    for (final device in devices) {
+      final key = normalizeKey(
+        device.name.isNotEmpty ? device.name : device.id,
+      );
+      payload.add({
+        'user_id': userId,
+        'device_key': key,
+        'name': device.name.isNotEmpty ? device.name : key,
+        'type': device.type,
+        'ip': device.ip,
+        'added_at': now.toIso8601String(),
+        'last_seen_at': now.toIso8601String(),
+      });
+    }
+
+    await _client
+        .from('devices')
+        .upsert(payload, onConflict: 'user_id,device_key')
+        .select();
+  }
+
+  Future<List<DeviceRecord>> listDevices() async {
+    final userId = _userId;
+    final response = await _client
+        .from('devices')
+        .select()
+        .eq('user_id', userId)
+        .order('added_at', ascending: true);
+
+    return (response as List<dynamic>)
+        .map((item) => DeviceRecord.fromMap(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> updateLastSeen(String deviceKey, {String? ip}) async {
+    final userId = _userId;
+    final now = DateTime.now().toUtc();
+    await _client.from('devices').update({
+      'last_seen_at': now.toIso8601String(),
+      if (ip != null && ip.isNotEmpty) 'ip': ip,
+    }).match({'user_id': userId, 'device_key': deviceKey});
+  }
+
+  Future<void> forget(String deviceKey) async {
+    final userId = _userId;
+    await _client
+        .from('devices')
+        .delete()
+        .match({'user_id': userId, 'device_key': deviceKey});
   }
 
   Future<void> forgetAndReset({
-    required String deviceId,
-    required String ip,
+    required String deviceKey,
+    required String? ip,
   }) async {
-    final ok = await const DeviceControlService().factoryResetByIp(ip);
-    // pase o falle la llamada, lo quitamos de la DB local para no duplicar
-    await _db.deleteDeviceByDeviceId(deviceId);
-    // (Opcional) feedback al usuario si ok == false
+    try {
+      if (ip != null && ip.isNotEmpty) {
+        await const DeviceControlService().factoryResetByIp(ip);
+      }
+    } catch (e) {
+      debugPrint('Error enviando factory reset: $e');
+    }
+    await forget(deviceKey);
   }
-
-  Future<void> touchFromDiscovered(DiscoveredDevice d) async {
-    final key = _normKey(d.deviceId, d.host, d.ip);
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    await _db.upsertDeviceByDeviceId(
-      deviceId: key,
-      name: (d.name.isNotEmpty ? d.name : key),
-      type: d.type,
-      ip: d.ip,
-      addedAt: now,
-      lastSeenAt: now,
-    );
-
-    await _db.touchDeviceSeen(
-      key,
-      ip: d.ip,
-      name: d.name.isNotEmpty ? d.name : null,
-      type: d.type,
-      whenMs: now,
-    );
-  }
-
-  Future<List<Device>> listDevices() => _db.fetchAllDevices();
-
-  Future<void> markSeen({
-    required String deviceId,
-    String? ip,
-    String? name,
-    String? type,
-  }) {
-    return _db.touchDeviceSeen(deviceId, ip: ip, name: name, type: type);
-  }
-
-  Future<void> forget(String deviceId) => _db.deleteDeviceByDeviceId(deviceId);
 }

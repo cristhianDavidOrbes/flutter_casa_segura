@@ -1,13 +1,10 @@
 // lib/screens/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../widgets/theme_toggle_button.dart';
-import 'package:appwrite/appwrite.dart';
-import '../config/environment.dart';
-
-/// URL pública del puente (Next/Vercel) que recibirá ?userId=...&secret=...
-/// y redirigirá a la app con casa_segura://reset?userId=...&secret=...
-const String kRecoveryBridgeUrl = 'https://redirrecion-home.vercel.app/reset';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
+import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   /// Opcional: para prellenar el email si vienes del login.
@@ -24,19 +21,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   bool _isLoading = false;
 
-  late final Client _client;
-  late final Account _account;
+  final AuthController _auth = Get.find<AuthController>();
 
   @override
   void initState() {
     super.initState();
     _emailCtrl.text = widget.initialEmail ?? '';
-
-    _client = Client()
-      ..setEndpoint(Environment.appwritePublicEndpoint)
-      ..setProject(Environment.appwriteProjectId);
-
-    _account = Account(_client);
   }
 
   @override
@@ -51,47 +41,45 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Envia el correo de recuperación con el enlace a tu puente en Vercel.
-      await _account.createRecovery(
-        email: _emailCtrl.text.trim(),
-        url: kRecoveryBridgeUrl,
-      );
+      await _auth.sendPasswordResetEmail(email: _emailCtrl.text.trim());
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Enlace de recuperación enviado. Revisa tu correo y abre el enlace.',
+            'Enlace de recuperacion enviado. Revisa tu correo y abre el enlace.',
           ),
         ),
       );
 
-      // Regresa al login tras un breve delay
       await Future.delayed(const Duration(milliseconds: 900));
       if (mounted) Get.back();
-    } on AppwriteException catch (e) {
-      // Manejo amigable de rate limit (429) u otros
-      String msg = 'Error al enviar recuperación: ${e.message ?? e.code}';
-      if (e.code == 429 || e.type == 'general_rate_limit_exceeded') {
-        msg =
-            'Has hecho demasiadas solicitudes. Espera un momento y vuelve a intentarlo (429).';
+    } on AppFailure catch (e) {
+      final message = e.message.isNotEmpty
+          ? e.message
+          : 'No se pudo enviar la recuperacion.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al enviar recuperación: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al enviar recuperacion: ' + e.toString())),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Escribe tu correo';
-    final email = v.trim();
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Escribe tu correo';
+    final email = value.trim();
     if (!email.contains('@') || !email.contains('.')) {
-      return 'Correo no válido';
+      return 'Correo no valido';
     }
     return null;
   }
@@ -102,7 +90,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recuperar contraseña'),
+        title: const Text('Recuperar contrasena'),
         actions: const [
           ThemeToggleButton(),
         ],
@@ -119,7 +107,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
+                    'Ingresa tu correo y te enviaremos un enlace para restablecer tu contrasena.',
                     style: TextStyle(color: cs.onBackground),
                   ),
                   const SizedBox(height: 16),
@@ -128,7 +116,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     keyboardType: TextInputType.emailAddress,
                     validator: _validateEmail,
                     decoration: const InputDecoration(
-                      labelText: 'Correo electrónico',
+                      labelText: 'Correo electronico',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -137,12 +125,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
                           onPressed: _sendRecovery,
-                          child: const Text('Enviar enlace de recuperación'),
+                          child: const Text('Enviar enlace de recuperacion'),
                         ),
                   const SizedBox(height: 12),
                   Text(
-                    'Cuando abras el enlace desde el correo, te llevará a:\n'
-                    '$kRecoveryBridgeUrl, que abrirá la app automáticamente.',
+                    "Usaremos el esquema ${Environment.supabaseResetRedirect} para abrir la app y permitirte cambiar tu contrasena.",
                     style: TextStyle(
                       color: cs.onBackground.withOpacity(.75),
                       fontSize: 13,
@@ -157,3 +144,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
+
+
+

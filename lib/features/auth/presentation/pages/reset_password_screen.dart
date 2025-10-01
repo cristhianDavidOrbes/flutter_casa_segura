@@ -1,22 +1,14 @@
-// lib/screens/reset_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../widgets/theme_toggle_button.dart';
-import 'package:appwrite/appwrite.dart';
 
-import '../config/environment.dart';
-import 'login_screen.dart';
-import '../circle_state.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
+import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/presentation/pages/login_screen.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
-  final String userId;
-  final String secret;
-
-  const ResetPasswordScreen({
-    super.key,
-    required this.userId,
-    required this.secret,
-  });
+  const ResetPasswordScreen({super.key});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
@@ -31,17 +23,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _obscure1 = true;
   bool _obscure2 = true;
 
-  late final Client client;
-  late final Account account;
-
-  @override
-  void initState() {
-    super.initState();
-    client = Client()
-      ..setEndpoint(Environment.appwritePublicEndpoint)
-      ..setProject(Environment.appwriteProjectId);
-    account = Account(client);
-  }
+  final AuthController _auth = Get.find<AuthController>();
 
   @override
   void dispose() {
@@ -56,44 +38,47 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Appwrite v12+: updateRecovery(userId, secret, password)
-      await account.updateRecovery(
-        userId: widget.userId,
-        secret: widget.secret,
-        password: _pwd1Controller.text.trim(),
-      );
+      await _auth.changePassword(newPassword: _pwd1Controller.text.trim());
+      await _auth.signOut();
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Contraseña actualizada con éxito')),
+        const SnackBar(content: Text('Contrasena actualizada con exito.')),
       );
 
-      // Volvemos al login
       Get.offAll(
-        () =>
-            LoginScreen(circleNotifier: CircleStateNotifier()..moveToBottom()),
+        () => LoginScreen(circleNotifier: CircleStateNotifier()..moveToBottom()),
       );
+    } on AppFailure catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('❌ Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al actualizar la contrasena: ${e.toString()}')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String? _validatePwd1(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Escribe tu nueva contraseña';
-    if (v.trim().length < 8) return 'Debe tener al menos 8 caracteres';
+  String? _validatePwd1(String? value) {
+    final pwd = value?.trim() ?? '';
+    if (pwd.isEmpty) return 'Escribe tu nueva contrasena';
+    if (pwd.length < 8) return 'Debe tener al menos 8 caracteres';
     return null;
   }
 
-  String? _validatePwd2(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Repite tu contraseña';
-    if (v.trim() != _pwd1Controller.text.trim()) {
-      return 'Las contraseñas no coinciden';
+  String? _validatePwd2(String? value) {
+    final pwd = value?.trim() ?? '';
+    if (pwd.isEmpty) return 'Repite tu contrasena';
+    if (pwd != _pwd1Controller.text.trim()) {
+      return 'Las contrasenas no coinciden';
     }
     return null;
   }
@@ -104,10 +89,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Restablecer contraseña'),
-        actions: const [
-          ThemeToggleButton(),
-        ],
+        title: const Text('Restablecer contrasena'),
+        actions: const [ThemeToggleButton()],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -117,17 +100,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             child: Column(
               children: [
                 Text(
-                  'Ingresa tu nueva contraseña y confírmala.',
-                  style: TextStyle(color: cs.onBackground.withOpacity(.8)),
+                  'Ingresa tu nueva contrasena y confirmala.',
+                  style: TextStyle(color: cs.onSurface.withOpacity(.8)),
                 ),
                 const SizedBox(height: 16),
-
-                // Nueva contraseña
                 TextFormField(
                   controller: _pwd1Controller,
                   obscureText: _obscure1,
                   decoration: InputDecoration(
-                    labelText: 'Nueva contraseña',
+                    labelText: 'Nueva contrasena',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       onPressed: () => setState(() => _obscure1 = !_obscure1),
@@ -139,13 +120,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   validator: _validatePwd1,
                 ),
                 const SizedBox(height: 16),
-
-                // Repite contraseña
                 TextFormField(
                   controller: _pwd2Controller,
                   obscureText: _obscure2,
                   decoration: InputDecoration(
-                    labelText: 'Repite la contraseña',
+                    labelText: 'Repite la contrasena',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
                       onPressed: () => setState(() => _obscure2 = !_obscure2),
@@ -157,15 +136,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   validator: _validatePwd2,
                 ),
                 const SizedBox(height: 24),
-
-                // Botón
                 _isLoading
                     ? const CircularProgressIndicator()
                     : SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _resetPassword,
-                          child: const Text('Actualizar contraseña'),
+                          child: const Text('Actualizar contrasena'),
                         ),
                       ),
               ],

@@ -1,52 +1,51 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:appwrite/appwrite.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'config/environment.dart';
+import 'core/config/environment.dart';
 import 'controllers/theme_controller.dart';
 import 'theme/app_theme.dart';
-import 'circle_state.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_page.dart';
-import 'services/deeplink_service.dart';
+import 'core/state/circle_state.dart';
+import 'features/auth/infrastructure/auth_binding.dart';
+import 'features/auth/infrastructure/deeplink_service.dart';
+import 'features/auth/presentation/pages/login_screen.dart';
+import 'features/home/presentation/pages/home_page.dart';
 import 'data/hive/ai_comment.dart';
 import 'data/hive/ai_comment_store.dart';
 import 'screens/splash_screen.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await SystemChrome.setPreferredOrientations(
-    [DeviceOrientation.portraitUp],
-  );
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  await dotenv.load(fileName: '.env');
+  Environment.ensureLoaded();
 
   await Hive.initFlutter();
   Hive.registerAdapter(AiCommentAdapter());
   await AiCommentStore.init();
 
-  final client = Client()
-    ..setEndpoint(Environment.appwritePublicEndpoint)
-    ..setProject(Environment.appwriteProjectId);
-  final account = Account(client);
+  await Supabase.initialize(
+    url: Environment.supabaseUrl,
+    anonKey: Environment.supabaseAnonKey,
+  );
 
-  bool loggedIn = false;
-  try {
-    await account.get();
-    loggedIn = true;
-  } catch (_) {
-    loggedIn = false;
-  }
+  AuthBinding.ensureInitialized();
 
-  runApp(MyApp(account: account, loggedIn: loggedIn));
+  final supabase = Supabase.instance.client;
+  final loggedIn = supabase.auth.currentSession != null;
+
+  runApp(MyApp(loggedIn: loggedIn));
 }
 
 class MyApp extends StatefulWidget {
-  final Account account;
+  const MyApp({super.key, required this.loggedIn});
+
   final bool loggedIn;
-  const MyApp({super.key, required this.account, required this.loggedIn});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -78,14 +77,10 @@ class _MyAppState extends State<MyApp> {
         themeMode: _themeController.themeMode,
         home: SplashScreen(
           nextPage: widget.loggedIn
-              ? HomePage(
-                  account: widget.account,
-                  circleNotifier: _circleNotifier,
-                )
+              ? HomePage(circleNotifier: _circleNotifier)
               : LoginScreen(circleNotifier: _circleNotifier),
         ),
       ),
     );
   }
 }
-
