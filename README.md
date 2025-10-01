@@ -25,11 +25,12 @@ Aplicacion Flutter para un sistema de seguridad domestica con ESP32. La app usa 
    SUPABASE_URL=https://xqmydyesafnhomhzewsq.supabase.co
    SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxbXlkeWVzYWZuaG9taHpld3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyNzY0OTgsImV4cCI6MjA3NDg1MjQ5OH0.YFteDpgiU87dwNq2PIaDrm28h5w6nu0T0mLEUjmTrmU
    SUPABASE_RESET_REDIRECT=casasegura://reset
+   SUPABASE_EMAIL_REDIRECT=https://redirrecion-home.vercel.app/reset
    ```
-   (ajusta URL/keys y el esquema de deep link segun tu proyecto).
+   (ajusta URL/keys y los redirects segun tu proyecto).
 4. Ejecutar `flutter pub get`.
 5. En tu proyecto Supabase, ejecutar el SQL de `supabase/schema.sql` para crear la tablas `profiles` y `devices`, las politicas RLS y los triggers de sincronizacion.
-6. Configurar en Supabase el redirect URL `casasegura://reset` en Authentication -> URL Configuration.
+6. En Supabase, Authentication -> URL Configuration, agrega tanto `casasegura://reset` como `https://redirrecion-home.vercel.app/reset` en los redirect permitidos (ajusta con tu dominio si usas otro).
 
 ## Ejecutar
 ```sh
@@ -39,7 +40,7 @@ flutter run          # android/ios/web/desktop segun dispositivo
 ## Autenticacion
 - `AuthBinding` registra `AuthController` con los usecases (`SignInWithEmail`, `SignUpWithEmail`, `SendPasswordReset`, `UpdatePassword`, `SignOut`).
 - `AuthController` expone metodos para login, registro, cambio de contrasena y logout; los widgets llaman al controller y muestran mensajes con `AppFailure` en caso de error.
-- `DeeplinkService` procesa el enlace de recuperacion (`casasegura://reset#...`) y llama a `SupabaseClient.auth.getSessionFromUrl` antes de navegar a `ResetPasswordScreen`.
+- `DeeplinkService` procesa los enlaces de recuperacion/verificacion (`casasegura://reset#...` o `https://redirrecion-home.vercel.app/reset`) y llama a `SupabaseClient.auth.getSessionFromUrl` antes de redirigir a la pantalla correspondiente.
 - `ForgotPasswordScreen` envia el correo de recuperacion y `ResetPasswordScreen` actualiza la contrasena y cierra sesion.
 
 ## Clean architecture (resumen)

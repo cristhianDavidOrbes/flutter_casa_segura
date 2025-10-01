@@ -5,7 +5,6 @@ import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/entities/auth_user.dart';
-import 'package:flutter_seguridad_en_casa/features/auth/infrastructure/deeplink_service.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/pages/login_screen.dart';
 import 'package:flutter_seguridad_en_casa/screens/devices_page.dart';
@@ -37,15 +36,14 @@ class _HomePageState extends State<HomePage> {
   Future<void> _logout() async {
     try {
       await _auth.signOut();
-      DeeplinkService().clearHistory();
       if (mounted) {
         Get.offAll(() => LoginScreen(circleNotifier: widget.circleNotifier));
       }
     } on AppFailure catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (mounted) {
@@ -62,12 +60,18 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final appBarTheme = theme.appBarTheme;
+    final appBarBackground = appBarTheme.backgroundColor ?? cs.surface;
+    final appBarForeground = appBarTheme.foregroundColor ?? cs.onSurface;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Bienvenido, $_welcomeName'),
-        backgroundColor: cs.primary,
+        backgroundColor: appBarBackground,
+        foregroundColor: appBarForeground,
+        surfaceTintColor: Colors.transparent,
         actions: [
           const ThemeToggleButton(),
           IconButton(
@@ -129,4 +133,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-

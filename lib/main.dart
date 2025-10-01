@@ -58,7 +58,14 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _circleNotifier = CircleStateNotifier();
+    if (Get.isRegistered<CircleStateNotifier>()) {
+      _circleNotifier = Get.find<CircleStateNotifier>();
+    } else {
+      _circleNotifier = Get.put<CircleStateNotifier>(
+        CircleStateNotifier(),
+        permanent: true,
+      );
+    }
     _themeController = Get.put(ThemeController(), permanent: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
