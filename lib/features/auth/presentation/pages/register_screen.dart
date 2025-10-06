@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:rive/rive.dart';
 
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/background.dart';
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
 import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
@@ -28,6 +27,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   bool _isLoading = false;
   bool _obscurePwd = true;
+  String? _pendingVerificationEmail;
+  bool _isResendingEmail = false;
 
   final AuthController _auth = Get.find<AuthController>();
 
@@ -108,36 +109,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _pendingVerificationEmail = null;
+    });
 
     try {
+      final email = _emailCtrl.text.trim();
+      final password = _pwdCtrl.text.trim();
+      final fullName = _nameCtrl.text.trim();
+
       final user = await _auth.signUp(
-        email: _emailCtrl.text.trim(),
-        password: _pwdCtrl.text.trim(),
-        fullName: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
+        email: email,
+        password: password,
+        fullName: fullName.isEmpty ? null : fullName,
       );
 
       if (!mounted) return;
 
       _setAnim(_kRegistrado);
-      final message = user.emailConfirmed
-          ? 'Registro exitoso.'
-          : 'Registro exitoso. Revisa tu correo para confirmar la cuenta.';
+      final requiresVerification = !user.emailConfirmed;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      setState(() {
+        _pendingVerificationEmail = requiresVerification ? email : null;
+      });
 
-      await Future.delayed(const Duration(milliseconds: 1200));
+      final message = requiresVerification
+          ? 'Registro exitoso. Revisa tu correo para confirmar la cuenta.'
+          : 'Registro exitoso.';
 
-      widget.circleNotifier.moveToBottom();
-      if (mounted) Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+
+      if (!requiresVerification) {
+        await Future.delayed(const Duration(milliseconds: 1200));
+        widget.circleNotifier.moveToBottom();
+        if (mounted) Navigator.pop(context);
+      }
     } on AppFailure catch (e) {
       if (!mounted) return;
       _setAnim(_kNoRegistrado);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
       _setAnim(_kNoRegistrado);
@@ -146,6 +161,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resendVerificationEmail() async {
+    final email = _pendingVerificationEmail?.trim();
+    if (email == null || email.isEmpty) return;
+    if (_isResendingEmail) return;
+
+    setState(() => _isResendingEmail = true);
+
+    try {
+      await _auth.resendConfirmationEmail(email: email);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Te enviamos nuevamente el correo de verificacion.'),
+        ),
+      );
+    } on AppFailure catch (e) {
+      if (!mounted) return;
+      final message = e.message.isNotEmpty
+          ? e.message
+          : 'No se pudo reenviar el correo de verificacion.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al reenviar el correo: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isResendingEmail = false);
+      }
+    }
+  }
+
+  void _onEmailChanged(String value) {
+    _setAnim(_kCorreo);
+    if (_pendingVerificationEmail != null) {
+      setState(() => _pendingVerificationEmail = null);
     }
   }
 
@@ -230,13 +289,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           focusNode: _emailFocus,
                           validator: (value) {
                             final email = value?.trim() ?? '';
-                            if (email.isEmpty) return 'Escribe un correo valido';
+                            if (email.isEmpty)
+                              return 'Escribe un correo valido';
                             if (!email.contains('@') || !email.contains('.')) {
                               return 'Correo no valido';
                             }
                             return null;
                           },
-                          onChangedExtra: (_) => _setAnim(_kCorreo),
+                          onChangedExtra: _onEmailChanged,
                         ),
                         const SizedBox(height: 16),
                         _label('Contrasena:'),
@@ -291,6 +351,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                         const SizedBox(height: 10),
+                        if (_pendingVerificationEmail != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surface.withOpacity(0.75),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: colorScheme.primary.withOpacity(0.35),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Enviamos un correo de verificacion a $_pendingVerificationEmail.',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurface,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: _resendVerificationEmail,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: colorScheme.primary,
+                                  ),
+                                  icon: _isResendingEmail
+                                      ? SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation(
+                                              colorScheme.primary,
+                                            ),
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.mark_email_unread_outlined,
+                                        ),
+                                  label: Text(
+                                    _isResendingEmail
+                                        ? 'Reenviando...'
+                                        : 'Reenviar correo de verificacion',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
                         TextButton(
                           onPressed: () {
                             widget.circleNotifier.moveToBottom();
@@ -301,18 +412,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ],
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 6, right: 8),
-                child: ThemeToggleButton(
-                  color: colorScheme.onPrimary,
-                  padding: EdgeInsets.zero,
                 ),
               ),
             ),

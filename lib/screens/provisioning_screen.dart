@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 
@@ -19,6 +20,7 @@ class ProvisioningScreen extends StatefulWidget {
 
 class _ProvisioningScreenState extends State<ProvisioningScreen> {
   final prov = ProvisioningService();
+  final DeviceRepository _deviceRepository = DeviceRepository.instance;
 
   bool _busy = false;
 
@@ -138,14 +140,22 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
   // Espera a que el dispositivo reaparezca en LAN (mDNS)
   Future<DiscoveredDevice?> _waitForDevice({String? alias}) async {
     final discovery = LanDiscoveryService();
-    for (int i = 0; i < 6; i++) {
+    final target = alias?.trim();
+    final targetLower = (target != null && target.isNotEmpty)
+        ? target.toLowerCase()
+        : null;
+
+    await Future.delayed(const Duration(seconds: 2));
+
+    const attempts = 12;
+    for (int i = 0; i < attempts; i++) {
       final list = await discovery.discover(
-        timeout: const Duration(seconds: 3),
+        timeout: const Duration(seconds: 4),
       );
       if (list.isNotEmpty) {
-        if (alias != null && alias.trim().isNotEmpty) {
+        if (targetLower != null) {
           for (final d in list) {
-            if (d.name.toLowerCase() == alias.trim().toLowerCase()) {
+            if (d.name.toLowerCase() == targetLower) {
               return d;
             }
           }
@@ -153,10 +163,14 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
           return list.first;
         }
       }
-      await Future.delayed(const Duration(seconds: 1));
+      if (i < attempts - 1) {
+        await Future.delayed(const Duration(seconds: 3));
+      }
     }
     return null;
   }
+
+  // Paso 3
 
   // Paso 3: enviar credenciales al equipo
   Future<void> _sendProvision() async {
@@ -165,7 +179,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
         _passCtrl.text.isEmpty) {
       Get.snackbar(
         'Provisioning',
-        'Selecciona una red e introduce la contraseña.',
+        'Selecciona una red e introduce la contrase?a.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
@@ -174,43 +188,51 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     FocusScope.of(context).unfocus();
 
     setState(() => _busy = true);
-    final ok = await prov.sendProvision(
+    final aliasInput = _nameCtrl.text.trim();
+    final result = await prov.sendProvision(
       ssid: _selectedSsid!.trim(),
       pass: _passCtrl.text.trim(),
-      name: _nameCtrl.text.trim().isEmpty ? null : _nameCtrl.text.trim(),
+      name: aliasInput.isEmpty ? null : aliasInput,
     );
     setState(() => _busy = false);
 
-    if (!ok) {
+    final bool accepted = result.ok || _looksLikeProvisionAccepted(result);
+    if (!accepted) {
+      final failureMessage = _resolveFailureMessage(result);
       Get.snackbar(
         'Provisioning',
-        'Fallo enviando credenciales al equipo.',
+        failureMessage,
         snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
       );
       return;
     }
 
+    final successMessage = _resolveSuccessMessage(result);
     Get.snackbar(
       'Provisioning',
-      'Credenciales enviadas ✅. El equipo se está conectando a tu Wi-Fi…',
+      successMessage,
       snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 4),
     );
 
     await prov.releaseWifiRouting();
+    await Future.delayed(const Duration(seconds: 2));
+    await _showProvisionAck(result, headline: successMessage);
 
-    // Diálogo de espera mientras reaparece por mDNS
+    // Di?logo de espera mientras reaparece por mDNS
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
         content: SizedBox(
-          height: 72,
+          height: 76,
           child: Row(
             children: [
               CircularProgressIndicator(),
               SizedBox(width: 16),
               Expanded(
-                child: Text('Esperando que el equipo aparezca en la red…'),
+                child: Text('Esperando que el equipo aparezca en la red...'),
               ),
             ],
           ),
@@ -218,23 +240,269 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
       ),
     );
 
-    final dev = await _waitForDevice(alias: _nameCtrl.text.trim());
-    if (mounted) Navigator.of(context).pop(); // cierra diálogo
+    final alias = aliasInput.isEmpty ? null : aliasInput;
+    final dev = await _waitForDevice(alias: alias);
+    if (mounted) Navigator.of(context).pop();
 
     if (dev != null) {
+      try {
+        await _deviceRepository.upsertDiscoveredDevice(dev, alias: alias);
+      } catch (e) {
+        Get.log('Error guardando dispositivo en Supabase: ${e.toString()}');
+      }
+
       Get.snackbar(
         'Provisioning',
-        '¡Listo! Conectado como ${dev.name} (${dev.ip}).',
+        'Listo! Conectado como ${dev.name} (${dev.ip}).',
         snackPosition: SnackPosition.BOTTOM,
       );
       Get.off(() => const DevicesPage());
     } else {
-      Get.snackbar(
-        'Provisioning',
-        'Credenciales enviadas. No pudimos confirmar aún; revisa en “Dispositivos”.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      final synthetic = (result.payload != null && result.payload!.isNotEmpty)
+          ? _deviceFromPayload(result.payload!, alias: alias)
+          : null;
+
+      if (synthetic != null) {
+        try {
+          await _deviceRepository.upsertDiscoveredDevice(
+            synthetic,
+            alias: alias ?? (synthetic.name.isNotEmpty ? synthetic.name : null),
+          );
+        } catch (e) {
+          Get.log(
+            'Error guardando dispositivo en Supabase (payload): ${e.toString()}',
+          );
+        }
+
+        Get.snackbar(
+          'Provisioning',
+          'Dispositivo registrado. Puede tardar unos segundos en verse como conectado.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 4),
+        );
+        Get.off(() => const DevicesPage());
+      } else {
+        Get.snackbar(
+          'Provisioning',
+          'Credenciales enviadas. No pudimos confirmar aun; revisa en "Dispositivos".',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
     }
+  }
+
+  bool _looksLikeProvisionAccepted(ProvisioningResult result) {
+    if (result.hasPayload) return true;
+    final message = result.message?.toLowerCase() ?? '';
+    if (message.isEmpty) return false;
+
+    const hints = [
+      'abort',
+      'ap closed',
+      'ap_closed',
+      'salir del ap',
+      'credentials saved',
+      'credenciales guardadas',
+      'connecting',
+      'conectando',
+      'success',
+      'ok',
+    ];
+    for (final hint in hints) {
+      if (message.contains(hint)) return true;
+    }
+    return false;
+  }
+
+  String _resolveFailureMessage(ProvisioningResult result) {
+    final message = result.message?.trim();
+    if (message == null || message.isEmpty) {
+      return 'Fallo enviando credenciales al equipo.';
+    }
+    return message;
+  }
+
+  String _resolveSuccessMessage(ProvisioningResult result) {
+    final message = result.message?.trim();
+    if (message == null || message.isEmpty) {
+      return 'Credenciales enviadas. El equipo se esta conectando a tu Wi-Fi...';
+    }
+    final lower = message.toLowerCase();
+    if (lower.contains('abort') ||
+        lower.contains('ap closed') ||
+        lower.contains('ap_closed')) {
+      return 'Credenciales enviadas. El equipo se reiniciara y saldra del modo AP.';
+    }
+    if (lower.contains('success') ||
+        lower.contains('ok') ||
+        lower.contains('conectado') ||
+        lower.contains('connected')) {
+      return message;
+    }
+    return 'Credenciales enviadas. El equipo se esta conectando a tu Wi-Fi...';
+  }
+
+  DiscoveredDevice? _deviceFromPayload(
+    Map<String, dynamic> payload, {
+    String? alias,
+  }) {
+    if (payload.isEmpty) return null;
+
+    final normalized = <String, dynamic>{};
+    payload.forEach((key, value) {
+      normalized[key.toString().toLowerCase()] = value;
+    });
+
+    String? pickString(List<String> keys) {
+      for (final key in keys) {
+        final value = normalized[key];
+        if (value == null) continue;
+        if (value is String && value.trim().isNotEmpty) return value.trim();
+        if (value is num) return value.toString();
+      }
+      return null;
+    }
+
+    int? pickInt(List<String> keys) {
+      for (final key in keys) {
+        final value = normalized[key];
+        if (value is int) return value;
+        if (value is num) return value.toInt();
+        if (value is String) {
+          final parsed = int.tryParse(value);
+          if (parsed != null) return parsed;
+        }
+      }
+      return null;
+    }
+
+    final host = pickString(['host', 'hostname', 'mdns_host']);
+    final ip = pickString([
+      'ip',
+      'ipv4',
+      'address',
+      'addr',
+      'lan_ip',
+      'local_ip',
+    ]);
+    final port = pickInt(['port', 'http_port', 'tcp_port']) ?? 80;
+    final deviceId = pickString([
+      'device_key',
+      'key',
+      'id',
+      'chip',
+      'chip_id',
+      'identifier',
+    ]);
+    final type = pickString(['type', 'device_type', 'kind', 'model']) ?? 'esp';
+    final nameFromPayload = pickString([
+      'alias',
+      'name',
+      'device_name',
+      'label',
+    ]);
+
+    final resolvedName = (alias != null && alias.trim().isNotEmpty)
+        ? alias.trim()
+        : (nameFromPayload?.trim().isNotEmpty == true
+              ? nameFromPayload!.trim()
+              : (host?.trim().isNotEmpty == true
+                    ? host!.trim()
+                    : (deviceId?.trim().isNotEmpty == true
+                          ? deviceId!.trim()
+                          : 'Dispositivo')));
+
+    final syntheticId = deviceId?.trim().isNotEmpty == true
+        ? deviceId!.trim()
+        : (host?.trim().isNotEmpty == true
+              ? host!.trim()
+              : (ip?.trim().isNotEmpty == true ? '${ip!.trim()}:$port' : null));
+
+    if (syntheticId == null) return null;
+
+    return DiscoveredDevice(
+      id: syntheticId,
+      name: resolvedName,
+      ip: ip?.trim() ?? '',
+      port: port,
+      type: type.trim().isNotEmpty ? type.trim() : 'esp',
+      deviceId: deviceId?.trim().isNotEmpty == true ? deviceId!.trim() : null,
+      host: host?.trim().isNotEmpty == true ? host!.trim() : null,
+    );
+  }
+
+  Future<void> _showProvisionAck(
+    ProvisioningResult result, {
+    String? headline,
+  }) async {
+    if (!mounted) return;
+    final data = result.payload;
+    if (data == null || data.isEmpty) return;
+
+    final entries =
+        data.entries.map((entry) => MapEntry(entry.key, entry.value)).toList()
+          ..sort((a, b) => a.key.compareTo(b.key));
+
+    final message = result.message?.trim();
+    final showMessage =
+        message != null &&
+        message.isNotEmpty &&
+        (headline == null || headline.trim() != message);
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Datos del dispositivo'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (showMessage)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      message!,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ...entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 120,
+                          child: Text(
+                            entry.key,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            entry.value == null ? '-' : entry.value.toString(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

@@ -7,13 +7,54 @@ import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wifi_iot/wifi_iot.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
+class ProvisioningResult {
+  const ProvisioningResult({
+    required this.ok,
+    this.payload,
+    this.message,
+  });
+
+  final bool ok;
+  final Map<String, dynamic>? payload;
+  final String? message;
+
+  bool get hasPayload => payload != null && payload!.isNotEmpty;
+}
+
 /// Servicio para onboard del equipo vía SoftAP.
 class ProvisioningService {
+
+  static const Duration _preProvisionDelay = Duration(milliseconds: 450);
+  static const Duration _postProvisionDelay = Duration(milliseconds: 750);
+
+  static const Set<String> _ignoredMessageKeys = {
+    'ok',
+    'message',
+    'msg',
+    'error',
+    'status',
+  };
+
+  static const Set<String> _sensitiveKeys = {
+    'pass',
+    'password',
+    'ssid',
+    'user_id',
+    'token',
+    'access_token',
+    'refresh_token',
+  };
+
   /// Prefijo del SSID que emite el equipo en modo AP.
   static const String apPrefix = 'CASA-ESP_';
 
   /// IP fija del SoftAP (servidor HTTP del equipo).
   static const String apIp = '192.168.4.1';
+
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   // ---------- PERMISOS ----------
   Future<bool> _ensurePermissions() async {
@@ -32,17 +73,22 @@ class ProvisioningService {
   // ---------- BÚSQUEDA SSID DEL EQUIPO ----------
   /// Escanea redes desde el **teléfono** y devuelve el primer SSID que
   /// comience por [apPrefix]. Requiere permisos de ubicación en Android.
-  Future<String?> findDeviceAp() async {
+  Future<String?> findDeviceAp({int attempts = 4, Duration delay = const Duration(milliseconds: 900)}) async {
     final ok = await _ensurePermissions();
     if (!ok) return null;
 
-    // Nota: loadWifiList está “deprecated”, pero para identificar el SSID
-    // del equipo es la forma práctica. Si quieres evitar el warning,
-    // se puede migrar a wifi_scan. Para ahora, funciona.
-    final list = await WiFiForIoTPlugin.loadWifiList() ?? <WifiNetwork>[];
-    for (final w in list) {
-      final ssid = (w.ssid ?? '').trim();
-      if (ssid.startsWith(apPrefix)) return ssid;
+    for (int i = 0; i < attempts; i++) {
+      // Nota: loadWifiList est? ?deprecated?, pero para identificar el SSID
+      // del equipo es la forma pr?ctica. Si quieres evitar el warning,
+      // se puede migrar a wifi_scan. Para ahora, funciona.
+      final list = await WiFiForIoTPlugin.loadWifiList() ?? <WifiNetwork>[];
+      for (final w in list) {
+        final ssid = (w.ssid ?? '').trim();
+        if (ssid.startsWith(apPrefix)) return ssid;
+      }
+      if (i < attempts - 1) {
+        await Future.delayed(delay + Duration(milliseconds: 150 * i));
+      }
     }
     return null;
   }
@@ -128,33 +174,65 @@ class ProvisioningService {
     }
   }
 
-  /// Envía credenciales al equipo (POST /provision) => {"ok":true/false}
-  Future<bool> sendProvision({
+
+
+  /// Env?a credenciales al equipo (POST /provision) y devuelve el resultado.
+  Future<ProvisioningResult> sendProvision({
     required String ssid,
     required String pass,
     String? name,
   }) async {
     final uri = Uri.parse('http://$apIp/provision');
-    final body = jsonEncode({
+    final userId = _supabase.auth.currentUser?.id;
+
+    final payload = <String, dynamic>{
       'ssid': ssid,
       'pass': pass,
       if (name != null && name.isNotEmpty) 'name': name,
-    });
+      if (userId != null && userId.isNotEmpty) 'user_id': userId,
+    };
+    final body = jsonEncode(payload);
 
     try {
+      await Future.delayed(_preProvisionDelay);
       final res = await http
           .post(uri, headers: {'Content-Type': 'application/json'}, body: body)
           .timeout(const Duration(seconds: 8));
 
-      if (res.statusCode != 200) return false;
+      await Future.delayed(_postProvisionDelay);
 
-      final data = jsonDecode(res.body);
-      if (data is Map && (data['ok'] == true)) return true;
-      return false;
-    } catch (_) {
-      return false;
+      if (res.statusCode != 200) {
+        final reason = res.reasonPhrase;
+        final detail = reason != null && reason.isNotEmpty ? ': $reason' : '';
+        return ProvisioningResult(
+          ok: false,
+          message: 'HTTP ${res.statusCode}$detail',
+        );
+      }
+
+      final data = _decodeJsonMap(res.body);
+      final ok = _isSuccess(data);
+      final message = data != null ? _extractMessage(data) : null;
+      final payloadMap = data != null ? _extractPayload(data) : null;
+
+      return ProvisioningResult(
+        ok: ok,
+        payload: payloadMap,
+        message: message,
+      );
+    } on TimeoutException {
+      return const ProvisioningResult(
+        ok: false,
+        message: 'Tiempo de espera agotado al contactar al equipo.',
+      );
+    } catch (e) {
+      return ProvisioningResult(
+        ok: false,
+        message: 'Error enviando credenciales al equipo: ${e.toString()}',
+      );
     }
   }
+
 
   /// Desactiva el “routing” por Wi-Fi en Android (vuelve a normal).
   Future<void> releaseWifiRouting() async {
@@ -169,6 +247,98 @@ class ProvisioningService {
     } catch (_) {}
     await releaseWifiRouting();
   }
+
+
+  Map<String, dynamic>? _decodeJsonMap(String source) {
+    if (source.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) {
+        return _stringKeyedMap(decoded);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  String? _extractMessage(Map<String, dynamic> data) {
+    for (final key in const ['message', 'msg', 'error', 'detail', 'reason']) {
+      final value = data[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  bool _isSuccess(Map<String, dynamic>? data) {
+    if (data == null) return true;
+
+    final okField = data['ok'];
+    if (okField is bool) return okField;
+    if (okField is num) return okField != 0;
+    if (okField is String) {
+      final normalized = okField.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        // continue checks
+      } else if (const {'ok', 'true', 'success', '1', 'yes', 'done'}.contains(normalized)) {
+        return true;
+      } else if (const {'false', 'error', 'fail', 'ko', '0', 'no'}.contains(normalized)) {
+        return false;
+      }
+    }
+
+    final status = data['status'];
+    if (status is String) {
+      final normalized = status.trim().toLowerCase();
+      if (const {'ok', 'success', 'done', 'ready', 'saved'}.contains(normalized)) {
+        return true;
+      }
+      if (const {'error', 'fail', 'failed'}.contains(normalized)) {
+        return false;
+      }
+    }
+
+    final errorField = data['error'];
+    if (errorField is bool) return !errorField;
+    if (errorField is String && errorField.trim().isNotEmpty) {
+      return false;
+    }
+
+    return true;
+  }
+
+  Map<String, dynamic>? _extractPayload(Map<String, dynamic> data) {
+    final dynamic explicit = data['device'] ?? data['data'] ?? data['info'];
+    if (explicit is Map) {
+      final sanitized = _stringKeyedMap(explicit);
+      sanitized.removeWhere((key, _) => _sensitiveKeys.contains(key.toLowerCase()));
+      return sanitized.isEmpty ? null : sanitized;
+    }
+
+    final filtered = <String, dynamic>{};
+    data.forEach((key, value) {
+      final lower = key.toLowerCase();
+      if (_ignoredMessageKeys.contains(lower)) {
+        return;
+      }
+      if (_sensitiveKeys.contains(lower)) {
+        return;
+      }
+      filtered[key] = value;
+    });
+
+    return filtered.isEmpty ? null : filtered;
+  }
+
+  Map<String, dynamic> _stringKeyedMap(Map input) {
+    final map = <String, dynamic>{};
+    input.forEach((key, value) {
+      map[key.toString()] = value;
+    });
+    return map;
+  }
+
 
   // ---------- PRIVADO ----------
   Future<bool> _probeAp() async {

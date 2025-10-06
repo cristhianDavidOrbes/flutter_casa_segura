@@ -40,6 +40,17 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> resendConfirmationEmail({
+    required String email,
+    required String redirectUrl,
+  }) {
+    return _remote.resendEmailConfirmation(
+      email: email,
+      redirectUrl: redirectUrl,
+    );
+  }
+
+  @override
   Future<void> updatePassword({required String newPassword}) {
     if (newPassword.trim().isEmpty) {
       throw const AuthFailure('La contrasena no puede estar vacia.');

@@ -21,5 +21,10 @@ abstract class AuthRepository {
     required String redirectUrl,
   });
 
+  Future<void> resendConfirmationEmail({
+    required String email,
+    required String redirectUrl,
+  });
+
   Future<void> updatePassword({required String newPassword});
 }

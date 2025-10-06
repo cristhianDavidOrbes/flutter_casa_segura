@@ -7,7 +7,6 @@ import 'package:get/get.dart';
 import 'package:rive/rive.dart';
 
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/background.dart';
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
@@ -208,9 +207,9 @@ class _LoginScreenState extends State<LoginScreen>
       Get.offAll(() => HomePage(circleNotifier: widget.circleNotifier));
     } on AppFailure catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (mounted) {
@@ -290,8 +289,10 @@ class _LoginScreenState extends State<LoginScreen>
               physics: const NeverScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(
                 16,
-                (_riveHeight + 30 + _topShift - _overlap)
-                    .clamp(0, double.infinity),
+                (_riveHeight + 30 + _topShift - _overlap).clamp(
+                  0,
+                  double.infinity,
+                ),
                 16,
                 24,
               ),
@@ -329,8 +330,9 @@ class _LoginScreenState extends State<LoginScreen>
                       child: Center(
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.surface,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.surface,
                             side: BorderSide(
                               color: Theme.of(context).colorScheme.primary,
                             ),
@@ -356,18 +358,6 @@ class _LoginScreenState extends State<LoginScreen>
                     ),
                   ),
                 ],
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, right: 8),
-                child: ThemeToggleButton(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  padding: EdgeInsets.zero,
-                ),
               ),
             ),
           ),
@@ -419,9 +409,7 @@ class _LoginScreenState extends State<LoginScreen>
           TextField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             cursorColor: Theme.of(context).colorScheme.primary,
             decoration: InputDecoration(
               filled: true,
@@ -447,9 +435,7 @@ class _LoginScreenState extends State<LoginScreen>
             controller: _passwordController,
             focusNode: _pwdFocus,
             obscureText: _obscurePassword,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             cursorColor: Theme.of(context).colorScheme.primary,
             onTap: () {
               _setAnimacion(1);
@@ -462,9 +448,9 @@ class _LoginScreenState extends State<LoginScreen>
                 onPressed: _togglePasswordVisibility,
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  color: Theme.of(context)
-                      .colorScheme.onSurface
-                      .withOpacity(0.7),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
               border: OutlineInputBorder(

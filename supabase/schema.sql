@@ -64,12 +64,15 @@ create table if not exists public.devices (
   user_id uuid not null references auth.users(id) on delete cascade,
   device_key text not null,
   name text not null,
-  type text,
+  type text default 'unknown',
   ip text,
   added_at timestamp with time zone default now(),
   last_seen_at timestamp with time zone,
   constraint devices_user_device_key_unique unique (user_id, device_key)
 );
+
+create index if not exists devices_user_idx on public.devices (user_id);
+create index if not exists devices_user_last_seen_idx on public.devices (user_id, last_seen_at desc);
 
 alter table public.devices enable row level security;
 

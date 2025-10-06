@@ -7,6 +7,7 @@ import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/sign_in_
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/sign_out.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/sign_up_with_email.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/update_password.dart';
+import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/resend_email_confirmation.dart';
 import 'package:get/get.dart';
 
 class AuthController extends GetxController {
@@ -14,19 +15,22 @@ class AuthController extends GetxController {
     required SignInWithEmail signInWithEmail,
     required SignUpWithEmail signUpWithEmail,
     required SendPasswordReset sendPasswordReset,
+    required ResendEmailConfirmation resendEmailConfirmation,
     required UpdatePassword updatePassword,
     required SignOut signOut,
     required AuthRepository repository,
-  })  : _signInWithEmail = signInWithEmail,
-        _signUpWithEmail = signUpWithEmail,
-        _sendPasswordReset = sendPasswordReset,
-        _updatePassword = updatePassword,
-        _signOut = signOut,
-        _repository = repository;
+  }) : _signInWithEmail = signInWithEmail,
+       _signUpWithEmail = signUpWithEmail,
+       _sendPasswordReset = sendPasswordReset,
+       _resendEmailConfirmation = resendEmailConfirmation,
+       _updatePassword = updatePassword,
+       _signOut = signOut,
+       _repository = repository;
 
   final SignInWithEmail _signInWithEmail;
   final SignUpWithEmail _signUpWithEmail;
   final SendPasswordReset _sendPasswordReset;
+  final ResendEmailConfirmation _resendEmailConfirmation;
   final UpdatePassword _updatePassword;
   final SignOut _signOut;
   final AuthRepository _repository;
@@ -64,6 +68,13 @@ class AuthController extends GetxController {
     return _sendPasswordReset(
       email: email,
       redirectUrl: Environment.supabaseResetRedirect,
+    );
+  }
+
+  Future<void> resendConfirmationEmail({required String email}) {
+    return _resendEmailConfirmation(
+      email: email,
+      redirectUrl: Environment.supabaseEmailRedirect,
     );
   }
 

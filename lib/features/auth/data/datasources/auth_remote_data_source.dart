@@ -1,6 +1,7 @@
 import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
 import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
-import 'package:flutter_seguridad_en_casa/features/auth/domain/entities/auth_user.dart' as domain;
+import 'package:flutter_seguridad_en_casa/features/auth/domain/entities/auth_user.dart'
+    as domain;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthRemoteDataSource {
@@ -73,6 +74,23 @@ class AuthRemoteDataSource {
     }
   }
 
+  Future<void> resendEmailConfirmation({
+    required String email,
+    required String redirectUrl,
+  }) async {
+    try {
+      await _client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+        emailRedirectTo: redirectUrl,
+      );
+    } on AuthException catch (e) {
+      throw AuthFailure(e.message, e);
+    } catch (e) {
+      throw AuthFailure('Error inesperado al reenviar confirmacion.', e);
+    }
+  }
+
   Future<void> signOut() async {
     try {
       await _client.auth.signOut();
@@ -88,10 +106,7 @@ class AuthRemoteDataSource {
     required String redirectUrl,
   }) async {
     try {
-      await _client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: redirectUrl,
-      );
+      await _client.auth.resetPasswordForEmail(email, redirectTo: redirectUrl);
     } on AuthException catch (e) {
       throw AuthFailure(e.message, e);
     } catch (e) {
@@ -101,9 +116,7 @@ class AuthRemoteDataSource {
 
   Future<void> updatePassword({required String newPassword}) async {
     try {
-      await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
     } on AuthException catch (e) {
       throw AuthFailure(e.message, e);
     } catch (e) {

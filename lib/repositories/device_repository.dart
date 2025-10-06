@@ -50,8 +50,66 @@ class DeviceRepository {
   }
 
   String normalizeKey(String value) {
-    final k = value.toLowerCase().trim();
-    return k.endsWith('.local') ? k.substring(0, k.length - 6) : k;
+    final trimmed = value.trim().toLowerCase();
+    if (trimmed.isEmpty) return '';
+    return trimmed.endsWith('.local')
+        ? trimmed.substring(0, trimmed.length - 6)
+        : trimmed;
+  }
+
+  String _normalizeCandidate(String? value) {
+    if (value == null) return '';
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+    return normalizeKey(trimmed);
+  }
+
+  String _deviceKeyFrom(DiscoveredDevice device) {
+    for (final candidate in [
+      device.deviceId,
+      device.name,
+      device.host,
+      device.id,
+    ]) {
+      final normalized = _normalizeCandidate(candidate);
+      if (normalized.isNotEmpty) return normalized;
+    }
+    throw StateError('Dispositivo descubierto sin identificador estable');
+  }
+
+  Map<String, dynamic> _payloadFor(
+    DiscoveredDevice device,
+    String userId,
+    DateTime nowUtc, {
+    String? alias,
+    String? precomputedKey,
+  }) {
+    final key = precomputedKey ?? _deviceKeyFrom(device);
+    final trimmedAlias = alias?.trim();
+    final deviceName = device.name.trim();
+    final hostName = (device.host ?? '').trim();
+    final resolvedName = (trimmedAlias != null && trimmedAlias.isNotEmpty)
+        ? trimmedAlias
+        : deviceName.isNotEmpty
+        ? deviceName
+        : hostName.isNotEmpty
+        ? hostName
+        : key;
+    final resolvedType = device.type.trim().isNotEmpty
+        ? device.type.trim()
+        : 'unknown';
+    final ip = device.ip.trim();
+    final isoNow = nowUtc.toIso8601String();
+
+    return {
+      'user_id': userId,
+      'device_key': key,
+      'name': resolvedName,
+      'type': resolvedType,
+      'ip': ip.isNotEmpty ? ip : null,
+      'added_at': isoNow,
+      'last_seen_at': isoNow,
+    };
   }
 
   Future<void> syncDiscovered(List<DiscoveredDevice> devices) async {
@@ -60,20 +118,29 @@ class DeviceRepository {
     final now = DateTime.now().toUtc();
 
     final payload = <Map<String, dynamic>>[];
+    final seenKeys = <String>{};
+
     for (final device in devices) {
-      final key = normalizeKey(
-        device.name.isNotEmpty ? device.name : device.id,
-      );
-      payload.add({
-        'user_id': userId,
-        'device_key': key,
-        'name': device.name.isNotEmpty ? device.name : key,
-        'type': device.type,
-        'ip': device.ip,
-        'added_at': now.toIso8601String(),
-        'last_seen_at': now.toIso8601String(),
-      });
+      final key = _deviceKeyFrom(device);
+      if (!seenKeys.add(key)) continue;
+      payload.add(_payloadFor(device, userId, now, precomputedKey: key));
     }
+
+    if (payload.isEmpty) return;
+
+    await _client
+        .from('devices')
+        .upsert(payload, onConflict: 'user_id,device_key')
+        .select();
+  }
+
+  Future<void> upsertDiscoveredDevice(
+    DiscoveredDevice device, {
+    String? alias,
+  }) async {
+    final userId = _userId;
+    final now = DateTime.now().toUtc();
+    final payload = _payloadFor(device, userId, now, alias: alias);
 
     await _client
         .from('devices')
@@ -97,18 +164,21 @@ class DeviceRepository {
   Future<void> updateLastSeen(String deviceKey, {String? ip}) async {
     final userId = _userId;
     final now = DateTime.now().toUtc();
-    await _client.from('devices').update({
-      'last_seen_at': now.toIso8601String(),
-      if (ip != null && ip.isNotEmpty) 'ip': ip,
-    }).match({'user_id': userId, 'device_key': deviceKey});
+    await _client
+        .from('devices')
+        .update({
+          'last_seen_at': now.toIso8601String(),
+          if (ip != null && ip.isNotEmpty) 'ip': ip,
+        })
+        .match({'user_id': userId, 'device_key': deviceKey});
   }
 
   Future<void> forget(String deviceKey) async {
     final userId = _userId;
-    await _client
-        .from('devices')
-        .delete()
-        .match({'user_id': userId, 'device_key': deviceKey});
+    await _client.from('devices').delete().match({
+      'user_id': userId,
+      'device_key': deviceKey,
+    });
   }
 
   Future<void> forgetAndReset({
