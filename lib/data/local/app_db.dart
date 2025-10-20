@@ -8,7 +8,7 @@ class AppDb {
   static final AppDb instance = AppDb._();
 
   static const _dbName = 'casa_segura.db';
-  static const _dbVersion = 1;
+  static const _dbVersion = 2;
 
   Database? _database;
 
@@ -50,6 +50,7 @@ class AppDb {
             owner_id INTEGER,
             added_at INTEGER NOT NULL,
             last_seen_at INTEGER,
+            home_active INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(owner_id) REFERENCES ${FamilyMember.tableName}(id)
               ON DELETE SET NULL
           )
@@ -82,6 +83,13 @@ class AppDb {
               ON DELETE SET NULL
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            'ALTER TABLE ${Device.tableName} ADD COLUMN home_active INTEGER NOT NULL DEFAULT 0',
+          );
+        }
       },
     );
   }
@@ -213,6 +221,7 @@ class AppDb {
       'owner_id': null,
       'added_at': addedAt,
       'last_seen_at': lastSeenAt ?? addedAt,
+      'home_active': 0,
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
     if (inserted != 0) return inserted;
 
@@ -259,6 +268,16 @@ class AppDb {
     final db = await database;
     await db.delete(
       Device.tableName,
+      where: 'device_id = ?',
+      whereArgs: [deviceId],
+    );
+  }
+
+  Future<void> setDeviceHomeActive(String deviceId, bool active) async {
+    final db = await database;
+    await db.update(
+      Device.tableName,
+      {'home_active': active ? 1 : 0},
       where: 'device_id = ?',
       whereArgs: [deviceId],
     );
@@ -359,6 +378,7 @@ class Device {
     this.ownerId,
     required this.addedAt,
     this.lastSeenAt,
+    this.homeActive = false,
   });
 
   static const tableName = 'devices';
@@ -371,6 +391,7 @@ class Device {
   final int? ownerId;
   final int addedAt;
   final int? lastSeenAt;
+  final bool homeActive;
 
   Device copyWith({
     int? id,
@@ -381,6 +402,7 @@ class Device {
     int? ownerId,
     int? addedAt,
     int? lastSeenAt,
+    bool? homeActive,
   }) {
     return Device(
       id: id ?? this.id,
@@ -391,6 +413,7 @@ class Device {
       ownerId: ownerId ?? this.ownerId,
       addedAt: addedAt ?? this.addedAt,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      homeActive: homeActive ?? this.homeActive,
     );
   }
 
@@ -403,6 +426,7 @@ class Device {
       'owner_id': ownerId,
       'added_at': addedAt,
       'last_seen_at': lastSeenAt,
+      'home_active': homeActive ? 1 : 0,
     };
     if (includeId && id != null) map['id'] = id;
     return map;
@@ -417,6 +441,7 @@ class Device {
     ownerId: map['owner_id'] as int?,
     addedAt: map['added_at'] as int,
     lastSeenAt: map['last_seen_at'] as int?,
+    homeActive: (map['home_active'] as int? ?? 0) != 0,
   );
 }
 

@@ -1,16 +1,12 @@
-// lib/features/devices/presentation/widgets/device_card.dart
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-/// Modelo mínimo esperado por la tarjeta.
-/// Si ya tienes tu propio Device (p. ej. en app_db.dart), puedes
-/// adaptar los campos o crear un mapper.
 class DeviceCardData {
   const DeviceCardData({
     required this.deviceId,
     required this.name,
-    required this.type, // "esp32cam", "esp", "servo", etc.
+    required this.type,
     this.ip,
     this.host,
     this.online = false,
@@ -28,8 +24,6 @@ class DeviceCardData {
   final Map<String, dynamic>? liveData;
 }
 
-/// Tarjeta compacta para mostrar un dispositivo en un carrusel horizontal.
-/// Ancho pensado para 2–3 tarjetas visibles en pantallas comunes.
 class DeviceCard extends StatelessWidget {
   const DeviceCard({
     super.key,
@@ -41,183 +35,229 @@ class DeviceCard extends StatelessWidget {
   });
 
   final DeviceCardData data;
-
-  /// Navegar a la página de detalles.
   final VoidCallback? onOpen;
-
-  /// Reintentar traer datos.
   final VoidCallback? onRefresh;
-
-  /// Si el dispositivo es de type "servo", se muestra el switch.
-  /// Se llama con el valor de destino (true=180, false=0).
   final Future<void> Function(bool on)? onServoToggle;
-
-  /// Para mostrar un pequeño loader en el switch mientras golpeas al endpoint.
   final bool isTogglingServo;
 
   bool get _isServo =>
       data.type.toLowerCase() == 'servo' ||
       data.type.toLowerCase().contains('servo');
 
+  bool get _isCamera =>
+      data.type.toLowerCase().contains('cam') ||
+      data.type.toLowerCase().contains('camera');
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      width: 280,
-      margin: const EdgeInsets.only(right: 12),
-      child: Card(
-        elevation: 2,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: InkWell(
-          onTap: onOpen,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Encabezado: estado + tipo
-                Row(
-                  children: [
-                    Icon(
-                      Icons.circle,
-                      size: 10,
-                      color: data.online ? Colors.green : cs.outline,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      data.online ? 'Conectado' : 'Desconectado',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: data.online ? Colors.green : cs.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    _TypeChip(type: data.type),
-                  ],
-                ),
-                const SizedBox(height: 8),
+    final statusColor = data.online ? Colors.green : cs.outline;
+    final statusLabel = data.online ? 'Conectado' : 'Desconectado';
 
-                // Nombre
-                Text(
-                  data.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
+    return Card(
+      elevation: 2,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _StatusAvatar(
+                    icon: _iconForType(data.type),
+                    color: statusColor,
+                    online: data.online,
                   ),
-                ),
-                const SizedBox(height: 4),
-
-                // Host / IP
-                Text(
-                  (data.ip?.isNotEmpty ?? false)
-                      ? 'IP: ${data.ip}'
-                      : (data.host?.isNotEmpty ?? false)
-                      ? 'Host: ${data.host}'
-                      : 'ID: ${data.deviceId}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 12),
-
-                // Preview de datos
-                _DataPreview(liveData: data.liveData),
-
-                const Spacer(),
-
-                // Si es servo, switch dedicado
-                if (_isServo) ...[
-                  const SizedBox(height: 8),
-                  _ServoRow(
-                    liveData: data.liveData,
-                    onToggle: onServoToggle,
-                    isBusy: isTogglingServo,
-                  ),
-                ],
-
-                const SizedBox(height: 12),
-
-                // Botonera inferior
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onOpen,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          data.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
                         ),
-                        child: const Text('Ver'),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          data.type.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _secondaryLine(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
+                  ),
+                  if (onRefresh != null)
+                    IconButton(
                       onPressed: onRefresh,
                       tooltip: 'Actualizar',
                       icon: const Icon(Icons.refresh),
                     ),
-                  ],
+                ],
+              ),
+              if (_isCamera) ...[
+                const SizedBox(height: 16),
+                _CameraPreview(colorScheme: cs),
+              ],
+              const SizedBox(height: 14),
+              _DataPreview(liveData: data.liveData),
+              if (_isServo) ...[
+                const SizedBox(height: 12),
+                _ServoRow(
+                  liveData: data.liveData,
+                  onToggle: onServoToggle,
+                  isBusy: isTogglingServo,
                 ),
               ],
-            ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  if (onOpen != null)
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: onOpen,
+                        child: const Text('Ver'),
+                      ),
+                    ),
+                  if (onOpen != null && onRefresh != null)
+                    const SizedBox(width: 12),
+                  if (onRefresh != null)
+                    FilledButton.tonalIcon(
+                      onPressed: onRefresh,
+                      icon: const Icon(Icons.autorenew),
+                      label: const Text('Actualizar'),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  String _secondaryLine() {
+    final ip = data.ip?.trim();
+    if (ip != null && ip.isNotEmpty) {
+      return 'IP: $ip';
+    }
+    final host = data.host?.trim();
+    if (host != null && host.isNotEmpty) {
+      return 'Host: $host';
+    }
+    return 'ID: ${data.deviceId}';
+  }
 }
 
-/// Chip con el tipo (ESP, CAM, SERVO)
-class _TypeChip extends StatelessWidget {
-  const _TypeChip({required this.type});
-  final String type;
+class _StatusAvatar extends StatelessWidget {
+  const _StatusAvatar({
+    required this.icon,
+    required this.color,
+    required this.online,
+  });
+
+  final IconData icon;
+  final Color color;
+  final bool online;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    IconData icon;
-    final t = type.toLowerCase();
-    if (t.contains('cam')) {
-      icon = Icons.videocam;
-    } else if (t.contains('servo')) {
-      icon = Icons.switch_access_shortcut;
-    } else {
-      icon = Icons.memory;
-    }
+    final borderColor = online ? color : cs.outline;
+    final fillColor =
+        online ? color.withOpacity(0.12) : cs.surfaceVariant.withOpacity(0.6);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        color: cs.surfaceVariant,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cs.outlineVariant),
+        shape: BoxShape.circle,
+        color: fillColor,
+        border: Border.all(color: borderColor, width: 3),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: cs.onSurfaceVariant),
-          const SizedBox(width: 4),
-          Text(
-            type.toUpperCase(),
-            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-          ),
-        ],
+      alignment: Alignment.center,
+      child: Icon(
+        icon,
+        color: borderColor,
+        size: 22,
       ),
     );
   }
 }
 
-/// Muestra hasta 3 pares clave/valor "útiles" del JSON.
-/// Ignora payloads triviales como {"ok":true} o {"status":"ok"}.
+class _CameraPreview extends StatelessWidget {
+  const _CameraPreview({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+        color: colorScheme.surfaceVariant.withOpacity(0.7),
+      ),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.videocam_outlined,
+        color: colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+IconData _iconForType(String type) {
+  final lower = type.toLowerCase();
+  if (lower.contains('cam')) return Icons.videocam_outlined;
+  if (lower.contains('servo')) return Icons.precision_manufacturing_outlined;
+  if (lower.contains('detector')) return Icons.sensors;
+  if (lower.contains('door') || lower.contains('lock')) {
+    return Icons.meeting_room_outlined;
+  }
+  return Icons.memory;
+}
+
+const Set<String> _ignoreKeys = {'ok', 'status', 'message'};
+
 class _DataPreview extends StatelessWidget {
   const _DataPreview({this.liveData});
   final Map<String, dynamic>? liveData;
-
-  static const _ignoreKeys = {'ok', 'status', 'message'};
 
   @override
   Widget build(BuildContext context) {
@@ -226,80 +266,155 @@ class _DataPreview extends StatelessWidget {
     final pairs = _extractPairs(liveData);
     if (pairs.isEmpty) {
       return Text(
-        'Sin datos aún…',
+        'Sin datos aun.',
         style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final e in pairs.take(3)) ...[
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  e.key,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface,
-                    fontWeight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const rowExtent = 18.0;
+        var maxRows = 3;
+        if (constraints.maxHeight.isFinite) {
+          maxRows = max(1, (constraints.maxHeight / rowExtent).floor());
+        }
+        final visible = pairs.take(maxRows).toList();
+        final hasMore = pairs.length > visible.length;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final e in visible) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      e.key,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      e.value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  e.value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-                ),
-              ),
+              const SizedBox(height: 4),
             ],
-          ),
-          const SizedBox(height: 4),
-        ],
-      ],
+            if (hasMore)
+              Text(
+                '...',
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+          ],
+        );
+      },
     );
-  }
-
-  List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? m) {
-    if (m == null || m.isEmpty) return [];
-    // Flatten superficial y fácil.
-    final out = <MapEntry<String, String>>[];
-
-    void walk(dynamic v, [String prefix = '']) {
-      if (v is Map) {
-        for (final kv in v.entries) {
-          final k = kv.key.toString();
-          if (_ignoreKeys.contains(k.toLowerCase())) continue;
-          final p = prefix.isEmpty ? k : '$prefix.$k';
-          walk(kv.value, p);
-        }
-      } else if (v is List) {
-        for (var i = 0; i < v.length; i++) {
-          final p = '$prefix[$i]';
-          walk(v[i], p);
-        }
-      } else {
-        out.add(MapEntry(prefix, (v ?? 'null').toString()));
-      }
-    }
-
-    walk(m);
-
-    // Ordena por longitud de clave (heurística simple para legibilidad)
-    out.sort((a, b) => a.key.length.compareTo(b.key.length));
-    return out;
   }
 }
 
-/// Fila de control para servo: switch + etiqueta de estado.
-/// Lee `servo.on` y/o `servo.pos` de liveData si existen.
+List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
+  if (source == null || source.isEmpty) return <MapEntry<String, String>>[];
+
+  final pairs = <MapEntry<String, String>>[];
+  final remaining = Map<String, dynamic>.from(source);
+
+  void addPair(String label, String value, {String? removeKey}) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    pairs.add(MapEntry(label, trimmed));
+    if (removeKey != null) {
+      remaining.remove(removeKey);
+    }
+  }
+
+  String formatDistance(num value) {
+    final absVal = value.abs();
+    if (absVal >= 100) return '${value.toStringAsFixed(0)} cm';
+    if (absVal >= 10) return '${value.toStringAsFixed(1)} cm';
+    return '${value.toStringAsFixed(2)} cm';
+  }
+
+  String? formatBool(dynamic value, {String trueLabel = 'Si', String falseLabel = 'No'}) {
+    if (value is bool) return value ? trueLabel : falseLabel;
+    if (value is num) return value != 0 ? trueLabel : falseLabel;
+    return null;
+  }
+
+  final servo = remaining.remove('servo');
+  if (servo is Map) {
+    final onLabel = formatBool(servo['on'], trueLabel: 'Activado', falseLabel: 'Apagado');
+    if (onLabel != null) addPair('Servo', onLabel);
+    final pos = servo['pos'];
+    if (pos is num) {
+      final clamped = pos.clamp(0, 180).toInt();
+      addPair('Posicion', '${clamped} deg');
+    }
+  }
+
+  final distance = remaining.remove('distance_cm') ?? remaining.remove('ultra_cm');
+  if (distance is num) {
+    addPair('Distancia', formatDistance(distance));
+  }
+
+  final soundEvt = remaining.remove('sound_event') ?? remaining.remove('sound_evt');
+  final soundLabel = formatBool(soundEvt, trueLabel: 'Detectado', falseLabel: 'Normal');
+  if (soundLabel != null) addPair('Sonido', soundLabel);
+
+  final soundRaw = remaining.remove('sound_raw') ?? remaining.remove('sound_do');
+  if (soundRaw is num) {
+    addPair('Microfono DO', soundRaw.toInt().toString());
+  } else if (soundRaw != null) {
+    addPair('Microfono DO', soundRaw.toString());
+  }
+
+  final ultraOk = remaining.remove('ultrasonic_ok') ?? remaining.remove('ultra_ok');
+  final ultraLabel = formatBool(ultraOk, trueLabel: 'OK', falseLabel: 'Sin eco');
+  if (ultraLabel != null) addPair('Ultrasonido', ultraLabel);
+
+  final updated = remaining.remove('updated_at');
+  if (updated is String && updated.isNotEmpty) {
+    addPair('Actualizado', updated);
+  }
+
+  void walk(dynamic value, String prefix) {
+    if (value is Map) {
+      for (final entry in value.entries) {
+        final key = entry.key.toString();
+        if (_ignoreKeys.contains(key.toLowerCase())) continue;
+        final next = prefix.isEmpty ? key : '$prefix.$key';
+        walk(entry.value, next);
+      }
+    } else if (value is List) {
+      for (var i = 0; i < value.length; i++) {
+        final next = prefix.isEmpty ? '[$i]' : '$prefix[$i]';
+        walk(value[i], next);
+      }
+    } else {
+      final textValue = (value ?? 'null').toString().trim();
+      if (textValue.isEmpty) return;
+      pairs.add(MapEntry(prefix.isEmpty ? 'valor' : prefix, textValue));
+    }
+  }
+
+  walk(remaining, '');
+  pairs.sort((a, b) => a.key.length.compareTo(b.key.length));
+  return pairs;
+}
+
 class _ServoRow extends StatelessWidget {
   const _ServoRow({
     required this.liveData,
@@ -314,18 +429,17 @@ class _ServoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
-    final parsed = _parse(liveData);
-    final isOn = parsed.$1;
-    final pos = parsed.$2;
+    final result = _parse(liveData);
+    final isOn = result.$1;
+    final pos = result.$2;
 
     return Row(
       children: [
         Expanded(
           child: Text(
             isOn
-                ? 'Activado (pos: ${pos ?? 180}°)'
-                : 'Desactivado (pos: ${pos ?? 0}°)',
+                ? 'Activado (pos: ${pos ?? '-'} deg)'
+                : 'Desactivado (pos: ${pos ?? '-'} deg)',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 13, color: cs.onSurface),
@@ -341,36 +455,31 @@ class _ServoRow extends StatelessWidget {
         else
           Switch(
             value: isOn,
-            onChanged: onToggle == null ? null : (v) => onToggle!(v),
+            onChanged: onToggle == null ? null : (value) => onToggle!(value),
           ),
       ],
     );
   }
 
-  /// Devuelve (on, pos) leyendo de:
-  /// - servo.on (bool)
-  /// - servo.pos (int)
-  /// - o heurística si sólo hay pos.
-  (bool, int?) _parse(Map<String, dynamic>? m) {
-    if (m == null) return (false, null);
+  (bool, int?) _parse(Map<String, dynamic>? map) {
+    if (map == null) return (false, null);
 
-    dynamic servo = m['servo'];
+    final servo = map['servo'];
     if (servo is Map) {
       final on = (servo['on'] is bool)
           ? (servo['on'] as bool)
           : (servo['pos'] is num)
-          ? (servo['pos'] as num) >= 90
-          : false;
+              ? (servo['pos'] as num) >= 90
+              : false;
       final pos = (servo['pos'] is num)
           ? max(0, min(180, (servo['pos'] as num).toInt()))
           : null;
       return (on, pos);
     }
 
-    // fallback: intenta con claves sueltas
-    final pos = (m['pos'] is num) ? (m['pos'] as num).toInt() : null;
-    final on = (m['on'] is bool)
-        ? (m['on'] as bool)
+    final pos = (map['pos'] is num) ? (map['pos'] as num).toInt() : null;
+    final on = (map['on'] is bool)
+        ? (map['on'] as bool)
         : (pos != null ? pos >= 90 : false);
     return (on, pos);
   }

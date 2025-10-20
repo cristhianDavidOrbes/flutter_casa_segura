@@ -10,6 +10,16 @@ class Environment {
   static String get supabaseEmailRedirect =>
       dotenv.env['SUPABASE_EMAIL_REDIRECT'] ?? supabaseResetRedirect;
 
+  static String? get deviceFallbackId {
+    final value = dotenv.env['DEVICE_FALLBACK_ID']?.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  static String? get deviceFallbackKey {
+    final value = dotenv.env['DEVICE_FALLBACK_KEY']?.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
   static void ensureLoaded() {
     if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
       throw StateError(
