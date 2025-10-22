@@ -1,4 +1,4 @@
-﻿// lib/features/home/presentation/pages/home_page.dart
+// lib/features/home/presentation/pages/home_page.dart
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -17,6 +17,7 @@ import 'package:flutter_seguridad_en_casa/screens/device_detail_page.dart';
 import 'package:flutter_seguridad_en_casa/services/lan_discovery_service.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
+import 'package:flutter_seguridad_en_casa/features/ai/presentation/pages/ai_assistant_page.dart';
 
 class _ServoSnapshot {
   const _ServoSnapshot({this.on, this.pos});
@@ -1903,9 +1904,7 @@ class _HomePageState extends State<HomePage> {
       // Barra inferior simple (sin botón extra de “agregar”, ya está en otra pantalla)
       bottomNavigationBar: _BottomNav(
         onIntelligence: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Panel de IA (pendiente).')),
-          );
+          Get.to(() => const AiAssistantPage());
         },
         onFamily: () {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -20,6 +20,11 @@ class Environment {
     return (value == null || value.isEmpty) ? null : value;
   }
 
+  static String? get geminiApiKey {
+    final value = dotenv.env['GEMINI_API_KEY']?.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
   static void ensureLoaded() {
     if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
       throw StateError(
