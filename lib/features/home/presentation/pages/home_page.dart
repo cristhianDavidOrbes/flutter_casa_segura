@@ -1,16 +1,16 @@
-// lib/features/home/presentation/pages/home_page.dart
+﻿// lib/features/home/presentation/pages/home_page.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/device_card.dart';
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/core/state/circle_state.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/entities/auth_user.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/pages/login_screen.dart';
 
 import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/screens/devices_page.dart';
 import 'package:flutter_seguridad_en_casa/screens/provisioning_screen.dart';
 import 'package:flutter_seguridad_en_casa/screens/device_detail_page.dart';
@@ -64,7 +64,7 @@ class _HomePageState extends State<HomePage> {
   final Map<String, Map<String, dynamic>> _detectorLiveData = {};
   final Map<String, Timer> _detectorPollTimers = {};
 
-  final _pageCtrl = PageController(viewportFraction: 0.55);
+  final _pageCtrl = PageController(viewportFraction: 0.48);
   double _page = 0;
 
   Device? _deviceById(String deviceId) {
@@ -79,6 +79,145 @@ class _HomePageState extends State<HomePage> {
   }
 
   String? _deviceIp(String deviceId) => _deviceById(deviceId)?.ip?.trim();
+
+  List<FamilyMember> _mockFamilyMembers() {
+    const sampleData = [
+      {
+        'name': 'Ana Torres',
+        'relation': 'Madre',
+        'phone': '555-0101',
+        'email': 'ana.torres@example.com',
+      },
+      {
+        'name': 'Carlos Torres',
+        'relation': 'Padre',
+        'phone': '555-0102',
+        'email': 'carlos.torres@example.com',
+      },
+      {
+        'name': 'Sofía Torres',
+        'relation': 'Hermana',
+        'phone': '555-0103',
+        'email': 'sofia.torres@example.com',
+      },
+      {
+        'name': 'Luis Torres',
+        'relation': 'Hermano',
+        'phone': '555-0104',
+        'email': 'luis.torres@example.com',
+      },
+      {
+        'name': 'Guillermo Torres',
+        'relation': 'Abuelo',
+        'phone': '555-0105',
+        'email': 'guillermo.torres@example.com',
+      },
+      {
+        'name': 'Marta Torres',
+        'relation': 'Abuela',
+        'phone': '555-0106',
+        'email': 'marta.torres@example.com',
+      },
+      {
+        'name': 'José López',
+        'relation': 'Tío',
+        'phone': '555-0107',
+        'email': 'jose.lopez@example.com',
+      },
+      {
+        'name': 'Laura López',
+        'relation': 'Tía',
+        'phone': '555-0108',
+        'email': 'laura.lopez@example.com',
+      },
+      {
+        'name': 'Diego López',
+        'relation': 'Primo',
+        'phone': '555-0109',
+        'email': 'diego.lopez@example.com',
+      },
+      {
+        'name': 'Valentina López',
+        'relation': 'Prima',
+        'phone': '555-0110',
+        'email': 'valentina.lopez@example.com',
+      },
+      {
+        'name': 'Isabel Pérez',
+        'relation': 'Tía abuela',
+        'phone': '555-0111',
+        'email': 'isabel.perez@example.com',
+      },
+      {
+        'name': 'Camila Pérez',
+        'relation': 'Prima',
+        'phone': '555-0112',
+        'email': 'camila.perez@example.com',
+      },
+      {
+        'name': 'Fernando Pérez',
+        'relation': 'Tío',
+        'phone': '555-0113',
+        'email': 'fernando.perez@example.com',
+      },
+      {
+        'name': 'Adriana Pérez',
+        'relation': 'Tía',
+        'phone': '555-0114',
+        'email': 'adriana.perez@example.com',
+      },
+      {
+        'name': 'Mateo Ruiz',
+        'relation': 'Cuñado',
+        'phone': '555-0115',
+        'email': 'mateo.ruiz@example.com',
+      },
+      {
+        'name': 'Natalia Ruiz',
+        'relation': 'Cuñada',
+        'phone': '555-0116',
+        'email': 'natalia.ruiz@example.com',
+      },
+      {
+        'name': 'Rodrigo Ruiz',
+        'relation': 'Sobrino',
+        'phone': '555-0117',
+        'email': 'rodrigo.ruiz@example.com',
+      },
+      {
+        'name': 'Lucía Ruiz',
+        'relation': 'Sobrina',
+        'phone': '555-0118',
+        'email': 'lucia.ruiz@example.com',
+      },
+      {
+        'name': 'Andrés Gómez',
+        'relation': 'Primo segundo',
+        'phone': '555-0119',
+        'email': 'andres.gomez@example.com',
+      },
+      {
+        'name': 'Gabriela Gómez',
+        'relation': 'Prima segunda',
+        'phone': '555-0120',
+        'email': 'gabriela.gomez@example.com',
+      },
+    ];
+
+    final baseTs = DateTime.now().millisecondsSinceEpoch;
+    return sampleData.asMap().entries.map((entry) {
+      final index = entry.key;
+      final data = entry.value;
+      return FamilyMember(
+        id: null,
+        name: data['name'] ?? 'Familiar ${index + 1}',
+        relation: data['relation'] ?? 'Familiar',
+        phone: data['phone'],
+        email: data['email'],
+        createdAt: baseTs - (index * 60000),
+      );
+    }).toList();
+  }
 
   Set<String> _hostKeysFor(String deviceId, {String? host}) {
     final keys = <String>{};
@@ -181,8 +320,13 @@ class _HomePageState extends State<HomePage> {
 
       final active = devsLocal.where((d) => d.homeActive).toList();
 
+      final families = famRows.map(FamilyMember.fromMap).toList();
+      if (families.isEmpty) {
+        families.addAll(_mockFamilyMembers());
+      }
+
       setState(() {
-        _family = famRows.map(FamilyMember.fromMap).toList();
+        _family = families;
         _devices = devsLocal;
         _activeDevices = active;
       });
@@ -237,8 +381,7 @@ class _HomePageState extends State<HomePage> {
                   (d) => remoteIds.contains(d.deviceId.trim().toLowerCase()),
                 )
                 .toList();
-            _activeDevices =
-                _devices.where((d) => d.homeActive).toList();
+            _activeDevices = _devices.where((d) => d.homeActive).toList();
           });
           _syncServoStreams(_activeDevices);
           _syncDetectorStreams(_activeDevices);
@@ -1083,99 +1226,473 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _openSettings() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Configuración pendiente.')));
+  }
+
   Widget _buildDevicesGrid() {
     const spacing = 12.0;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final children = <Widget>[];
-        int index = 0;
-        final devices = _activeDevices;
-        while (index < devices.length) {
-          final cycle = index % 3;
-          final remaining = devices.length - index;
-          if ((cycle == 0 || cycle == 1) && remaining >= 2) {
-            children.add(
-              Row(
-                children: [
-                  Expanded(child: _buildHomeDeviceCard(devices[index])),
-                  const SizedBox(width: spacing),
-                  Expanded(child: _buildHomeDeviceCard(devices[index + 1])),
-                ],
-              ),
-            );
-            children.add(const SizedBox(height: spacing));
-            index += 2;
-          } else {
-            children.add(
-              SizedBox(
-                width: double.infinity,
-                child: _buildHomeDeviceCard(devices[index]),
-              ),
-            );
-            children.add(const SizedBox(height: spacing));
-            index += 1;
-          }
-        }
-        if (children.isNotEmpty) {
-          children.removeLast();
-        }
-        return Column(
+    final devices = _activeDevices;
+    if (devices.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final rows = <List<Device>>[];
+    int index = 0;
+    while (index < devices.length) {
+      final remaining = devices.length - index;
+      if (remaining == 1) {
+        rows.add([devices[index]]);
+        index += 1;
+      } else if (remaining == 3) {
+        rows.add([devices[index], devices[index + 1]]);
+        rows.add([devices[index + 2]]);
+        index += 3;
+      } else {
+        rows.add([devices[index], devices[index + 1]]);
+        index += 2;
+      }
+    }
+
+    final children = <Widget>[];
+    for (int i = 0; i < rows.length; i++) {
+      children.add(_buildDeviceRow(rows[i], spacing));
+      if (i != rows.length - 1) {
+        children.add(const SizedBox(height: spacing));
+      }
+    }
+
+    final key = devices.map((d) => d.deviceId).join('|');
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 250),
+        switchInCurve: Curves.easeIn,
+        switchOutCurve: Curves.easeOut,
+        child: Column(
+          key: ValueKey<String>(key),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildHomeDeviceCard(Device device) {
-    final online = _isOnline(device);
-    final kind = _deviceKind(device);
-    final showServo = kind == _DeviceKind.servo;
-    final liveData =
-        showServo ? _cardLiveDataFor(device) : _detectorLiveData[device.deviceId];
-
-    String displayType;
-    if (kind == _DeviceKind.servo) {
-      displayType = 'servo';
-    } else if (kind == _DeviceKind.camera) {
-      displayType = 'camera';
-    } else {
-      displayType = device.type.isNotEmpty ? device.type : 'esp32';
+  List<_MetricInfo> _detectorMetrics(Map<String, dynamic>? data) {
+    if (data == null || data.isEmpty) {
+      return const [_MetricInfo(label: 'Estado', value: 'Sin datos')];
     }
 
-    final data = DeviceCardData(
-      deviceId: device.deviceId,
-      name: device.name,
-      type: displayType,
-      ip: device.ip,
-      host: device.deviceId,
-      online: online,
-      lastSeenAt: device.lastSeenAt != null
-          ? DateTime.fromMillisecondsSinceEpoch(device.lastSeenAt!)
-          : null,
-      liveData: liveData,
+    final metrics = <_MetricInfo>[];
+
+    final distance = data['distance_cm'];
+    if (distance is num) {
+      final value = distance % 1 == 0
+          ? '${distance.toStringAsFixed(0)} cm'
+          : '${distance.toStringAsFixed(1)} cm';
+      metrics.add(_MetricInfo(label: 'Distancia', value: value));
+    }
+
+    final soundEvent = data['sound_event'];
+    bool? soundDetected;
+    if (soundEvent is bool) {
+      soundDetected = soundEvent;
+    } else if (soundEvent is num) {
+      soundDetected = soundEvent != 0;
+    }
+    if (soundDetected != null) {
+      metrics.add(
+        _MetricInfo(
+          label: 'Sonido',
+          value: soundDetected ? 'Alerta' : 'Normal',
+        ),
+      );
+    }
+
+    final state = data['state'];
+    if (state is String && state.trim().isNotEmpty) {
+      metrics.add(_MetricInfo(label: 'Estado', value: state.trim()));
+    }
+
+    final ultrasonic = data['ultrasonic_ok'];
+    if (ultrasonic is bool) {
+      metrics.add(
+        _MetricInfo(label: 'Ultrasónico', value: ultrasonic ? 'OK' : 'Falla'),
+      );
+    }
+
+    final soundRaw = data['sound_raw'];
+    if (metrics.length < 2 && soundRaw != null) {
+      metrics.add(_MetricInfo(label: 'Nivel', value: soundRaw.toString()));
+    }
+
+    if (metrics.isEmpty) {
+      metrics.add(const _MetricInfo(label: 'Estado', value: 'Sin datos'));
+    }
+
+    return metrics.take(2).toList();
+  }
+
+  IconData _iconForKind(_DeviceKind kind) {
+    switch (kind) {
+      case _DeviceKind.servo:
+        return Icons.settings_input_component_rounded;
+      case _DeviceKind.camera:
+        return Icons.videocam_outlined;
+      case _DeviceKind.detector:
+        return Icons.sensors_outlined;
+    }
+  }
+
+  String _typeLabel(_DeviceKind kind) {
+    switch (kind) {
+      case _DeviceKind.servo:
+        return 'Servo';
+      case _DeviceKind.camera:
+        return 'Cámara';
+      case _DeviceKind.detector:
+        return 'Detector';
+    }
+  }
+
+  String _relativeTimeLabel(DateTime timestamp) {
+    final diff = DateTime.now().difference(timestamp);
+    if (diff.inSeconds <= 0) return 'Actualizado hace instantes';
+    if (diff.inSeconds < 60) return 'Hace ${diff.inSeconds}s';
+    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes}m';
+    if (diff.inHours < 24) return 'Hace ${diff.inHours}h';
+    return 'Hace ${diff.inDays}d';
+  }
+
+  String? _cameraPreviewUrl(Device device) {
+    final ip = device.ip?.trim();
+    if (ip != null && ip.isNotEmpty) {
+      final normalized = ip.startsWith('http') ? ip : 'http://$ip';
+      return '$normalized/photo';
+    }
+    final host = device.deviceId.trim().toLowerCase();
+    if (host.isNotEmpty) {
+      return 'http://$host.local/photo';
+    }
+    return null;
+  }
+
+  Widget _buildDeviceRow(List<Device> rowDevices, double spacing) {
+    if (rowDevices.length == 1) {
+      return _buildAiDeviceCard(rowDevices.first, isWide: true);
+    }
+    return Row(
+      children: [
+        Expanded(child: _buildAiDeviceCard(rowDevices[0], isWide: false)),
+        SizedBox(width: spacing),
+        Expanded(child: _buildAiDeviceCard(rowDevices[1], isWide: false)),
+      ],
+    );
+  }
+
+  Widget _buildAiDeviceCard(Device device, {required bool isWide}) {
+    final cs = Theme.of(context).colorScheme;
+    final kind = _deviceKind(device);
+    final online = _isOnline(device);
+    final servoData = (_cardLiveDataFor(device)?['servo'] as Map?)
+        ?.cast<String, dynamic>();
+    final bool servoOn = servoData?['on'] == true;
+    final bool servoBusy = _servoBusy.contains(device.deviceId);
+    final detectorData = _detectorLiveData[device.deviceId];
+    final lastSeen = device.lastSeenAt != null
+        ? DateTime.fromMillisecondsSinceEpoch(device.lastSeenAt!)
+        : null;
+    final horizontalPadding = isWide ? 18.0 : 14.0;
+    final verticalPadding = isWide ? 18.0 : 16.0;
+
+    late final String displayType;
+    switch (kind) {
+      case _DeviceKind.servo:
+        displayType = 'servo';
+        break;
+      case _DeviceKind.camera:
+        displayType = 'camera';
+        break;
+      case _DeviceKind.detector:
+        displayType = device.type.isNotEmpty ? device.type : 'esp32';
+        break;
+    }
+
+    Widget buildServoContent() {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final pos = servoData?['pos'];
+          final posText = pos is num ? '${pos.round()}°' : null;
+          final buttonWidth = math.min(
+            math.max(constraints.maxWidth * 0.5, 110.0),
+            isWide ? 160.0 : 136.0,
+          );
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      servoOn ? 'Servo activo' : 'Servo apagado',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (posText != null)
+                      Text(
+                        'Posición: $posText',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    if (lastSeen != null)
+                      Text(
+                        _relativeTimeLabel(lastSeen),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: buttonWidth,
+                child: FilledButton.icon(
+                  onPressed: servoBusy
+                      ? null
+                      : () => _toggleServoFromCard(device, !servoOn),
+                  icon: Icon(
+                    servoOn
+                        ? Icons.power_settings_new
+                        : Icons.power_settings_new_outlined,
+                  ),
+                  label: Text(servoOn ? 'Apagar' : 'Encender'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: servoOn ? cs.primary : cs.surfaceVariant,
+                    foregroundColor: servoOn ? cs.onPrimary : cs.onSurface,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    Widget buildDetectorContent() {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final metrics = _detectorMetrics(detectorData);
+          final width = math.max(120.0, constraints.maxWidth);
+
+          Widget metricsStack() => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: width,
+                child: _MetricChip(
+                  label: metrics.isNotEmpty ? metrics[0].label : 'Distancia',
+                  value: metrics.isNotEmpty ? metrics[0].value : '--',
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: width,
+                child: _MetricChip(
+                  label: metrics.length > 1 ? metrics[1].label : 'Sonido',
+                  value: metrics.length > 1 ? metrics[1].value : '--',
+                ),
+              ),
+            ],
+          );
+
+          return Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Expanded(child: Center(child: metricsStack())),
+              if (lastSeen != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    _relativeTimeLabel(lastSeen),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ),
+            ],
+          );
+        },
+      );
+    }
+
+    Widget buildCameraContent() {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final previewWidth = math.max(
+            120.0,
+            math.min(constraints.maxWidth, isWide ? 220.0 : 180.0),
+          );
+          final previewHeight = previewWidth * 9 / 16;
+          return Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Expanded(
+                child: Center(
+                  child: _CameraPreview(
+                    url: _cameraPreviewUrl(device),
+                    width: previewWidth,
+                    height: previewHeight,
+                  ),
+                ),
+              ),
+              if (lastSeen != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _relativeTimeLabel(lastSeen),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ],
+          );
+        },
+      );
+    }
+
+    Widget content;
+    switch (kind) {
+      case _DeviceKind.servo:
+        content = buildServoContent();
+        break;
+      case _DeviceKind.camera:
+        content = buildCameraContent();
+        break;
+      case _DeviceKind.detector:
+        content = buildDetectorContent();
+        break;
+    }
+
+    final double bodyHeight = isWide ? 210.0 : 188.0;
+    final body = SizedBox(
+      height: bodyHeight,
+      child: Align(alignment: Alignment.center, child: content),
     );
 
-    return DeviceCard(
-      data: data,
-      onOpen: () {
-        Get.to(
-          () => DeviceDetailPage(
-            deviceId: device.deviceId,
-            name: device.name,
-            type: displayType,
-            ip: device.ip,
-            lastSeenAt: device.lastSeenAt != null
-                ? DateTime.fromMillisecondsSinceEpoch(device.lastSeenAt!)
-                : null,
+    final borderColor = online
+        ? cs.primary.withOpacity(0.35)
+        : cs.outlineVariant;
+
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _DeviceTypeBadge(icon: _iconForKind(kind), online: online),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                device.name,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 9,
+                    color: online ? Colors.green : cs.error,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        online ? 'En línea' : 'Sin conexión',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _typeLabel(kind),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+            ],
           ),
-        );
-      },
-      onRefresh: () => unawaited(_refresh()),
-      onServoToggle:
-          showServo ? (value) => _toggleServoFromCard(device, value) : null,
-      isTogglingServo:
-          showServo && _servoBusy.contains(device.deviceId),
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            Get.to(
+              () => DeviceDetailPage(
+                deviceId: device.deviceId,
+                name: device.name,
+                type: displayType,
+                ip: device.ip,
+                lastSeenAt: lastSeen,
+              ),
+            );
+          },
+          onLongPress: () => unawaited(_refresh()),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: verticalPadding,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [header, const SizedBox(height: 10), body],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1195,9 +1712,13 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inicio'),
-        actions: const [
-          // ÚNICO botón de tema en la pantalla
-          ThemeToggleButton(),
+        actions: [
+          const ThemeToggleButton(),
+          IconButton(
+            tooltip: 'Configuración',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _openSettings,
+          ),
         ],
         leading: IconButton(
           tooltip: 'Cerrar sesión',
@@ -1248,20 +1769,20 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           const Spacer(),
-                          if (_family.isNotEmpty)
-                            Text(
-                              '${_family.length}',
-                              style: TextStyle(color: cs.onSurfaceVariant),
-                            ),
                         ],
                       ),
                     ),
                   ),
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 150,
-                      child: _family.isEmpty
-                          ? _EmptyInline(
+                      height: 200,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          const _FamilyBackdropOval(height: 360, width: 1200),
+                          if (_family.isEmpty)
+                            _EmptyInline(
                               icon: Icons.person_add_alt_1,
                               title: 'Sin familiares',
                               actionText: 'Añadir',
@@ -1275,30 +1796,43 @@ class _HomePageState extends State<HomePage> {
                                 );
                               },
                             )
-                          : PageView.builder(
-                              controller: _pageCtrl,
-                              itemCount: _family.length,
-                              padEnds: true,
-                              itemBuilder: (ctx, i) {
-                                final t = (i - _page).abs().clamp(0, 1);
-                                final scale = 1 - (0.16 * t);
-                                final opacity = 1 - (0.55 * t);
-                                return Center(
-                                  child: AnimatedScale(
-                                    scale: scale,
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.easeOut,
-                                    child: AnimatedOpacity(
-                                      opacity: opacity,
-                                      duration: const Duration(
-                                        milliseconds: 250,
+                          else
+                            SizedBox.expand(
+                              child: PageView.builder(
+                                controller: _pageCtrl,
+                                itemCount: _family.length,
+                                padEnds: true,
+                                itemBuilder: (ctx, i) {
+                                  final t = (i - _page).abs().clamp(0, 1);
+                                  final scale = 1 - (0.25 * t);
+                                  final opacity = 1 - (0.55 * t);
+                                  return Align(
+                                    alignment: Alignment.topCenter,
+                                    child: FractionallySizedBox(
+                                      widthFactor: 0.9,
+                                      child: AnimatedScale(
+                                        scale: scale,
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        curve: Curves.easeOut,
+                                        child: AnimatedOpacity(
+                                          opacity: opacity,
+                                          duration: const Duration(
+                                            milliseconds: 250,
+                                          ),
+                                          child: _FamilyCard(
+                                            member: _family[i],
+                                          ),
+                                        ),
                                       ),
-                                      child: _FamilyCard(member: _family[i]),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -1362,15 +1896,15 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
                 ],
               ),
       ),
       // Barra inferior simple (sin botón extra de “agregar”, ya está en otra pantalla)
       bottomNavigationBar: _BottomNav(
-        onHelp: () {
+        onIntelligence: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Centro de ayuda (pendiente).')),
+            const SnackBar(content: Text('Panel de IA (pendiente).')),
           );
         },
         onFamily: () {
@@ -1407,12 +1941,11 @@ class _FamilyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      width: 230,
-      padding: const EdgeInsets.all(14),
+      width: 140,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       decoration: BoxDecoration(
-        color: cs.surface,
+        color: cs.secondaryContainer,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cs.outlineVariant),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.18),
@@ -1421,52 +1954,38 @@ class _FamilyCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: cs.secondaryContainer,
+            backgroundColor: cs.primary,
             child: Text(
               _initials(member.name),
               style: TextStyle(
-                color: cs.onSecondaryContainer,
+                color: cs.onPrimary,
                 fontWeight: FontWeight.bold,
+                fontSize: 20,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DefaultTextStyle.merge(
-              style: const TextStyle(fontSize: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    member.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    member.relation,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: cs.onSurfaceVariant),
-                  ),
-                  if ((member.phone ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      member.phone!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ],
-              ),
+          const SizedBox(height: 12),
+          Text(
+            member.name,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: cs.onSecondaryContainer,
             ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            member.relation,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSecondaryContainer.withOpacity(0.8)),
           ),
         ],
       ),
@@ -1481,23 +2000,177 @@ class _FamilyCard extends StatelessWidget {
   }
 }
 
+class _MetricInfo {
+  const _MetricInfo({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeviceTypeBadge extends StatelessWidget {
+  const _DeviceTypeBadge({required this.icon, required this.online});
+
+  final IconData icon;
+  final bool online;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = online ? cs.primaryContainer : cs.surfaceVariant;
+    final fg = online ? cs.onPrimaryContainer : cs.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(icon, size: 22, color: fg),
+    );
+  }
+}
+
+class _CameraPreview extends StatelessWidget {
+  const _CameraPreview({
+    required this.url,
+    required this.width,
+    required this.height,
+  });
+
+  final String? url;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: url == null
+            ? _buildPlaceholder(context)
+            : Image.network(
+                url!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _buildPlaceholder(context),
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return _buildPlaceholder(context);
+                },
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      color: cs.surfaceVariant,
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.videocam_outlined,
+        color: cs.onSurfaceVariant,
+        size: math.min(width, height) * 0.45,
+      ),
+    );
+  }
+}
+
+class _FamilyBackdropOval extends StatelessWidget {
+  const _FamilyBackdropOval({required this.height, required this.width});
+
+  final double height;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color fillColor = isDark
+        ? cs.surfaceVariant.withOpacity(0.55)
+        : cs.primary.withOpacity(0.28);
+    return IgnorePointer(
+      ignoring: true,
+      child: OverflowBox(
+        alignment: Alignment.center,
+        minWidth: width,
+        maxWidth: width,
+        minHeight: height,
+        maxHeight: height,
+        child: ClipOval(
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: ColoredBox(color: fillColor),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyInline extends StatelessWidget {
   const _EmptyInline({
     required this.icon,
     required this.title,
     required this.actionText,
     required this.onAction,
+    this.circleHeight,
+    this.circleWidth,
+    this.circleColor,
   });
 
   final IconData icon;
   final String title;
   final String actionText;
   final VoidCallback onAction;
+  final double? circleHeight;
+  final double? circleWidth;
+  final Color? circleColor;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Column(
+    final content = Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, size: 36, color: cs.onSurfaceVariant),
@@ -1506,6 +2179,36 @@ class _EmptyInline extends StatelessWidget {
         TextButton(onPressed: onAction, child: Text(actionText)),
       ],
     );
+
+    final hasCircle =
+        circleHeight != null &&
+        circleWidth != null &&
+        circleHeight! > 0 &&
+        circleWidth! > 0;
+    if (!hasCircle) {
+      return content;
+    }
+
+    final background = OverflowBox(
+      alignment: Alignment.center,
+      minWidth: circleWidth!,
+      maxWidth: circleWidth!,
+      minHeight: circleHeight!,
+      maxHeight: circleHeight!,
+      child: ClipOval(
+        child: SizedBox(
+          width: circleWidth!,
+          height: circleHeight!,
+          child: ColoredBox(color: circleColor ?? cs.primary.withOpacity(0.08)),
+        ),
+      ),
+    );
+
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [background, content],
+    );
   }
 }
 
@@ -1513,13 +2216,13 @@ class _EmptyInline extends StatelessWidget {
 
 class _BottomNav extends StatelessWidget {
   const _BottomNav({
-    required this.onHelp,
+    required this.onIntelligence,
     required this.onFamily,
     required this.onHome,
     required this.onDevices,
   });
 
-  final VoidCallback onHelp;
+  final VoidCallback onIntelligence;
   final VoidCallback onFamily;
   final VoidCallback onHome;
   final VoidCallback onDevices;
@@ -1547,7 +2250,11 @@ class _BottomNav extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _NavBtn(icon: Icons.help_outline, label: 'Ayuda', onTap: onHelp),
+            _NavBtn(
+              icon: Icons.smart_toy_outlined,
+              label: 'Inteligencia',
+              onTap: onIntelligence,
+            ),
             _NavBtn(
               icon: Icons.people_alt_outlined,
               label: 'Familia',

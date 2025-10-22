@@ -1,10 +1,10 @@
 // lib/screens/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
 import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   /// Opcional: para prellenar el email si vienes del login.
@@ -91,9 +91,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Recuperar contrasena'),
-        actions: const [
-          ThemeToggleButton(),
-        ],
+        actions: const [ThemeToggleButton()],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -144,6 +142,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
+
 
 
 

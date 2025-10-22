@@ -13,12 +13,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
 import 'package:flutter_seguridad_en_casa/models/device_remote_flags.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 
 class DeviceDetailPage extends StatefulWidget {
   const DeviceDetailPage({
@@ -674,10 +674,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         .watchLiveSignals(widget.deviceId)
         .listen(_onRemoteSignals);
 
-    _remoteService.fetchLiveSignals(widget.deviceId).then((signals) {
-      if (!mounted) return;
-      _onRemoteSignals(signals);
-    });
+    _loadRemoteSignalsOnce();
 
     _subscribeRemoteFlags();
 
@@ -751,6 +748,23 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     _remoteFlagsSub = _remoteService
         .watchRemoteFlags(widget.deviceId)
         .listen(_handleRemoteFlags);
+  }
+
+  void _loadRemoteSignalsOnce({int attempt = 0}) {
+    _remoteService.fetchLiveSignals(widget.deviceId).then((signals) {
+      if (!mounted) return;
+      _onRemoteSignals(signals);
+    }).catchError((error, stackTrace) {
+      debugPrint(
+        'No se pudieron obtener las señales remotas (intento ${attempt + 1}): $error',
+      );
+      if (!mounted) return;
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted) {
+          _loadRemoteSignalsOnce(attempt: attempt + 1);
+        }
+      });
+    });
   }
 
   void _handleRemoteFlags(DeviceRemoteFlags? flags) {
@@ -977,11 +991,30 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         debugPrint(
           'Snapshot no encontrado (intento $_remoteSnapshotMisses): $bucket/$object',
         );
-    } else {
+        if (_remoteSnapshotMisses >= _remoteSnapshotMissLimit) {
+          _stopRemoteSnapshotTimer();
+          _remoteSnapshotBucket = null;
+          _remoteSnapshotObjectKey = null;
+          if (mounted) {
+            setState(() {});
+          }
+          debugPrint('Snapshot remoto deshabilitado tras $_remoteSnapshotMisses intentos fallidos.');
+        }
+      } else {
+        debugPrint('Error creando URL firmada del snapshot: $error');
+        if (mounted) {
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted) _fetchSignedSnapshot();
+          });
+        }
+      }
+    } catch (error) {
       debugPrint('Error creando URL firmada del snapshot: $error');
-    }
-  } catch (error) {
-    debugPrint('Error creando URL firmada del snapshot: $error');
+      if (mounted) {
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) _fetchSignedSnapshot();
+        });
+      }
     } finally {
       _fetchingRemoteSnapshot = false;
     }
@@ -1418,6 +1451,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         title: Text(widget.name),
 
         actions: [
+          const ThemeToggleButton(),
           IconButton(
             tooltip: 'Ping',
 
@@ -2310,7 +2344,7 @@ class _MjpegView extends StatefulWidget {
 }
 
 class _MjpegViewState extends State<_MjpegView> {
-  http.Client? _streamClient;
+  HttpClient? _httpClient;
 
   StreamSubscription<List<int>>? _sub;
 
@@ -2327,34 +2361,37 @@ class _MjpegViewState extends State<_MjpegView> {
   Timer? _snapshotTimer;
 
   bool _closed = false;
+  bool _restartScheduled = false;
 
   @override
   void initState() {
     super.initState();
-
-    _startStream();
+    unawaited(_startStream());
   }
 
   @override
   void dispose() {
     _closed = true;
-
-    _stopStream();
+    unawaited(_stopStream());
 
     _stopSnapshot();
 
     super.dispose();
   }
 
-  void _stopStream() {
+  Future<void> _stopStream() async {
     final sub = _sub;
     _sub = null;
     if (sub != null) {
-      sub.cancel().catchError((_) {});
+      try {
+        await sub.cancel();
+      } catch (_) {}
     }
-    final client = _streamClient;
-    _streamClient = null;
-    client?.close();
+    final client = _httpClient;
+    _httpClient = null;
+    client?.close(force: true);
+    _boundary = null;
+    _buf.clear();
   }
 
   void _stopSnapshot() {
@@ -2364,53 +2401,55 @@ class _MjpegViewState extends State<_MjpegView> {
   }
 
   Future<void> _startStream() async {
-    _stopStream();
+    if (_closed) return;
 
+    await _stopStream();
     _stopSnapshot();
 
-    final client = http.Client();
-    _streamClient = client;
+    HttpClient? client;
     try {
-      final request = http.Request('GET', Uri.parse(widget.url));
-      request.headers['accept'] = 'multipart/x-mixed-replace';
-      request.headers['connection'] = 'keep-alive';
+      client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 6);
+      _httpClient = client;
 
-      final response = await client.send(request);
+      final uri = Uri.parse(widget.url);
+      final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.acceptHeader, 'multipart/x-mixed-replace');
+      request.headers.set(HttpHeaders.connectionHeader, 'keep-alive');
+
+      final response = await request.close();
 
       if (response.statusCode != 200) {
+        client.close(force: true);
+        _httpClient = null;
         _onStreamFail();
         return;
       }
 
-      final contentTypeHeader = response.headers['content-type'];
-      MediaType? mediaType;
-      if (contentTypeHeader != null) {
-        try {
-          mediaType = MediaType.parse(contentTypeHeader);
-        } catch (_) {}
-      }
-
-      final boundary = _extractBoundary(mediaType?.parameters['boundary']);
+      final boundary =
+          _extractBoundary(response.headers.contentType?.parameters['boundary']);
 
       if (boundary == null) {
+        client.close(force: true);
+        _httpClient = null;
         _onStreamFail();
         return;
       }
 
       _boundary = boundary;
 
-      final guardedStream = response.stream.handleError(
-        (Object error, StackTrace stackTrace) {
-          _onStreamFail();
-        },
-      );
-
-      _sub = guardedStream.listen(
+      _sub = response.listen(
         _onData,
-        onDone: _onStreamFail,
+        onError: (Object error, StackTrace stackTrace) =>
+            _handleStreamError(error, stackTrace),
+        onDone: _handleStreamDone,
         cancelOnError: true,
       );
     } catch (_) {
+      client?.close(force: true);
+      if (identical(client, _httpClient)) {
+        _httpClient = null;
+      }
       _onStreamFail();
     }
   }
@@ -2535,20 +2574,44 @@ class _MjpegViewState extends State<_MjpegView> {
     });
   }
 
+  void _handleStreamError(Object error, StackTrace stackTrace) {
+    if (_closed) return;
+    _onStreamFail();
+  }
+
+  void _handleStreamDone() {
+    if (_closed) return;
+    _onStreamFail();
+  }
+
   void _onStreamFail() {
     if (_closed) return;
 
-    _stopStream();
-
     _failCount++;
 
-    if (_failCount >= 3 && widget.fallbackSnapshotUrl != null) {
-      _startSnapshot();
-    } else {
-      Future.delayed(const Duration(seconds: 1), () {
-        if (!_closed) _startStream();
-      });
+    if (_restartScheduled) return;
+    _restartScheduled = true;
+
+    unawaited(_recoverFromFailure());
+  }
+
+  Future<void> _recoverFromFailure() async {
+    try {
+      await _stopStream();
+
+      if (_failCount >= 3 && widget.fallbackSnapshotUrl != null) {
+        _startSnapshot();
+        await Future.delayed(const Duration(seconds: 5));
+      } else {
+        await Future.delayed(const Duration(milliseconds: 600));
+      }
+    } finally {
+      _restartScheduled = false;
     }
+
+    if (_closed) return;
+
+    await _startStream();
   }
 
   void _startSnapshot() {

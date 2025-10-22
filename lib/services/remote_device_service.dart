@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/device_remote_flags.dart';
@@ -127,21 +128,29 @@ class RemoteDeviceService {
   final SupabaseClient _client;
 
   Stream<List<RemoteLiveSignal>> watchLiveSignals(String deviceId) {
-    return _client
-        .from('live_signals')
-        .stream(primaryKey: ['id'])
-        .eq('device_id', deviceId)
-        .map(
-          (rows) => rows.map((row) => RemoteLiveSignal.fromMap(row)).toList(),
-        );
+    return _retryingStream<List<RemoteLiveSignal>>(
+      () => _client
+          .from('live_signals')
+          .stream(primaryKey: ['id'])
+          .eq('device_id', deviceId)
+          .map(
+            (rows) =>
+                rows.map((row) => RemoteLiveSignal.fromMap(row)).toList(),
+          ),
+    );
   }
 
   Stream<List<RemoteActuator>> watchActuators(String deviceId) {
-    return _client
-        .from('actuators')
-        .stream(primaryKey: ['id'])
-        .eq('device_id', deviceId)
-        .map((rows) => rows.map((row) => RemoteActuator.fromMap(row)).toList());
+    return _retryingStream<List<RemoteActuator>>(
+      () => _client
+          .from('actuators')
+          .stream(primaryKey: ['id'])
+          .eq('device_id', deviceId)
+          .map(
+            (rows) =>
+                rows.map((row) => RemoteActuator.fromMap(row)).toList(),
+          ),
+    );
   }
 
   Future<List<RemoteActuator>> fetchActuators(String deviceId) async {
@@ -248,16 +257,18 @@ class RemoteDeviceService {
   }
 
   Stream<DeviceRemoteFlags?> watchRemoteFlags(String deviceId) {
-    return _client
-        .from('device_remote_flags')
-        .stream(primaryKey: ['device_id'])
-        .eq('device_id', deviceId)
-        .map((rows) {
-          if (rows.isEmpty) return null;
-          final row = rows.first;
-          final map = _normalizeMap(row);
-          return DeviceRemoteFlags.fromMap(map);
-        });
+    return _retryingStream<DeviceRemoteFlags?>(
+      () => _client
+          .from('device_remote_flags')
+          .stream(primaryKey: ['device_id'])
+          .eq('device_id', deviceId)
+          .map((rows) {
+            if (rows.isEmpty) return null;
+            final row = rows.first;
+            final map = _normalizeMap(row);
+            return DeviceRemoteFlags.fromMap(map);
+          }),
+    );
   }
 
   Future<DeviceRemoteFlags?> fetchRemoteFlags(String deviceId) async {
@@ -385,18 +396,20 @@ class RemoteDeviceService {
   }
 
   Stream<RemoteDevicePresence?> watchDevicePresence(String deviceId) {
-    return _client
-        .from('devices')
-        .stream(primaryKey: ['id'])
-        .eq('id', deviceId)
-        .map((rows) {
-          if (rows.isEmpty) return null;
-          final dynamic row = rows.first;
-          final Map<String, dynamic> map = row is Map<String, dynamic>
-              ? row
-              : Map<String, dynamic>.from(row as Map);
-          return RemoteDevicePresence.fromMap(map);
-        });
+    return _retryingStream<RemoteDevicePresence?>(
+      () => _client
+          .from('devices')
+          .stream(primaryKey: ['id'])
+          .eq('id', deviceId)
+          .map((rows) {
+            if (rows.isEmpty) return null;
+            final dynamic row = rows.first;
+            final Map<String, dynamic> map = row is Map<String, dynamic>
+                ? row
+                : Map<String, dynamic>.from(row as Map);
+            return RemoteDevicePresence.fromMap(map);
+          }),
+    );
   }
 
   Map<String, dynamic> _normalizeMap(dynamic value) {
@@ -408,4 +421,68 @@ class RemoteDeviceService {
   }
 
   String _utcNowIso() => DateTime.now().toUtc().toIso8601String();
+
+  Stream<T> _retryingStream<T>(
+    Stream<T> Function() sourceBuilder, {
+    Duration retryDelay = const Duration(seconds: 5),
+  }) {
+    StreamSubscription<T>? subscription;
+    bool disposed = false;
+
+    late StreamController<T> controller;
+
+    late void Function() start;
+
+    void scheduleRestart() {
+      if (disposed) return;
+      Future.delayed(retryDelay, () {
+        if (!disposed) start();
+      });
+    }
+
+    start = () {
+      if (disposed) return;
+      try {
+        subscription = sourceBuilder().listen(
+          controller.add,
+          onError: (Object error, StackTrace stackTrace) async {
+            debugPrint(
+              'Stream Supabase con error, reintentando en ${retryDelay.inSeconds}s: $error',
+            );
+            await subscription?.cancel();
+            subscription = null;
+            scheduleRestart();
+          },
+          onDone: () {
+            debugPrint(
+              'Stream Supabase finalizado, reintentando en ${retryDelay.inSeconds}s.',
+            );
+            subscription = null;
+            scheduleRestart();
+          },
+          cancelOnError: false,
+        );
+      } catch (error) {
+        debugPrint(
+          'Fallo al iniciar stream de Supabase, reintentando en ${retryDelay.inSeconds}s: $error',
+        );
+        subscription = null;
+        scheduleRestart();
+      }
+    };
+
+    controller = StreamController<T>(
+      onListen: start,
+      onPause: () => subscription?.pause(),
+      onResume: () => subscription?.resume(),
+      onCancel: () async {
+        disposed = true;
+        final sub = subscription;
+        subscription = null;
+        await sub?.cancel();
+      },
+    );
+
+    return controller.stream;
+  }
 }

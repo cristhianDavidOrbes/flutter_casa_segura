@@ -3,9 +3,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
 import 'device_detail_page.dart';
 
@@ -204,7 +204,9 @@ class _DevicesPageState extends State<DevicesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dispositivos'),
-        actions: const [ThemeToggleButton()],
+        actions: const [
+          ThemeToggleButton(),
+        ],
       ),
       body: Column(
         children: [

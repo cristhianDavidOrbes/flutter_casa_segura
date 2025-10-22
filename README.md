@@ -135,12 +135,16 @@ Consulta los comentarios en `lib/services/provisioning_service.dart`, `lib/servi
 - Detector: ahora expone `/apmode`, `/factory` y `/factory_reset` tambiÃ©n en modo STA y procesa la transiciÃ³n a SoftAP despuÃ©s de responder HTTP, habilitando el botÃ³n "Olvidar" de la app. Reflashea los detectores para tomar el cambio.
 - Pendiente por mejorar: detectar ping/reinicio remoto cuando el equipo solo tiene IP privada; hoy se muestra el error pero falta UX para casos fuera de la LAN.
 - Detector y cámara registran un actuador `system` y atienden `device_next_command`; el botón Olvidar encola `factory_reset` en Supabase cuando la IP local no está disponible.
-- DeviceDetailPage ahora cae a los datos de `live_signals` en Supabase cuando el equipo está fuera de la red local, permitiendo ver telemetría y confirmar olvidado sin depender del IP LAN.
-- Nueva tabla `device_remote_flags` lleva el estado remoto (ping / olvido) de cada equipo; la app la actualiza y el firmware la consulta periódicamente para confirmar ping o activar el SoftAP. Ejecuta `schema2.sql` para crearla.
-- Nueva RPC `device_current_state` devuelve en un JSON compacto las señales activas de `live_signals`; la app la usa como fallback cuando el acceso HTTP directo falla (aplicar schema2.sql en Supabase tras actualizar).
+- DeviceDetailPage ahora cae a los datos de `live_signals` en Supabase cuando el equipo está fuera de la red local. El botón Ping crea una solicitud remota, espera el ACK y muestra el último latido registrado. El botón Olvidar detecta `forget_status='done'` antes de eliminar el registro local.
+- La tabla `device_remote_flags` coordina acciones remotas (ping, olvido). La app marca los flags y el firmware (ESP32) consulta la RPC `device_take_remote_flags` cada 10s. Al recibir `forget_requested`, el firmware invoca `device_mark_remote_forget_done()` y reinicia el micro (`ESP.restart()`), limpiando credenciales y volviendo a SoftAP sin intervención manual.
+- Nueva RPC `device_current_state` devuelve en un JSON compacto las señales activas de `live_signals`; la app la usa como fallback cuando el acceso HTTP directo falla. Ejecuta `schema2.sql` en tu instancia Supabase tras actualizar.
 - Los dispositivos activos del Home se eligen desde la pantalla *Dispositivos* (interruptor "Usar en Inicio"); la IA solo consume esos equipos.
 - **Siguiente tarea**: depurar el actory_reset remoto cuando el dispositivo sigue en línea pero no enciende el SoftAP. Revisar que ctuator_commands pase de pending->taken, que el firmware imprima [SUPA] factory_reset recibido y que se ejecute enterSoftApNow(). Documentar hallazgos aquí antes de nuevos cambios.
 - DeviceDetailPage: la pantalla ahora detecta el tipo del equipo y muestra solo los controles relevantes (detector -> sonido/distancia, servo -> toggle, camara -> stream o snapshot). Actualiza la app para ver la vista adaptativa.
+- HomePage: las tarjetas de camara y detector comparten altura fija; la miniatura MJPEG queda centrada y el indicador "Hace ..." permanece visible al pie. Distancia y Sonido se apilan en columna para evitar desbordes.
+- SplashScreen: la animacion del splash se reemplazo por un video (`assets/carga.mp4`) reproducido en loop dentro de un contenedor redondeado con borde translúcido.
+
+
 
 - El firmware de referencia para los servos (SoftAP + Supabase) se guarda ahora en irmware/servo_softap/servo_softap_provision.ino. Edita y versiona ese archivo aquÃ­ cada vez que ajustes el comportamiento del dispositivo.
 - Si durante la provisiÃ³n el monitor serie del ESP muestra HTTP 401 Invalid API key, revisa SUPABASE_URL y SUPABASE_ANON_KEY en .env, reprovisiona el equipo y confirma en la tabla ctuators que existe una fila kind = 'servo' para ese device_id.

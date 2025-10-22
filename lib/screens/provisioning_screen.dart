@@ -8,6 +8,7 @@ import 'package:wifi_iot/wifi_iot.dart';
 import '../services/provisioning_service.dart';
 import '../services/lan_discovery_service.dart';
 import 'devices_page.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 
 class ProvisioningScreen extends StatefulWidget {
   const ProvisioningScreen({super.key});
@@ -516,7 +517,10 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Provisionar dispositivo')),
+      appBar: AppBar(
+        title: const Text('Provisionar dispositivo'),
+        actions: const [ThemeToggleButton()],
+      ),
       body: Stack(
         children: [
           ListView(
