@@ -47,24 +47,32 @@ class FamilyPresenceService {
   }
 
   bool _isWithinSchedule(FamilyMember member, DateTime now) {
-    final start = member.entryStart;
-    final end = member.entryEnd;
-    if (start == null || start.isEmpty || end == null || end.isEmpty) {
+    if (member.schedules.isEmpty) {
       return true;
     }
 
-    final startMinutes = _toMinutes(start);
-    final endMinutes = _toMinutes(end);
     final currentMinutes = now.hour * 60 + now.minute;
 
-    if (startMinutes == null || endMinutes == null) return true;
+    for (final schedule in member.schedules) {
+      final startMinutes = _toMinutes(schedule.start);
+      final endMinutes = _toMinutes(schedule.end);
+      if (startMinutes == null || endMinutes == null) {
+        continue;
+      }
 
-    if (endMinutes <= startMinutes) {
-      // Window crosses midnight.
-      return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+      if (endMinutes <= startMinutes) {
+        // Window crosses midnight.
+        final matches =
+            currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+        if (matches) return true;
+      } else {
+        if (currentMinutes >= startMinutes && currentMinutes <= endMinutes) {
+          return true;
+        }
+      }
     }
 
-    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+    return false;
   }
 
   int? _toMinutes(String value) {

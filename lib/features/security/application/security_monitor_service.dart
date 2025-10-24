@@ -34,6 +34,8 @@ class SecurityMonitorService {
   Timer? _sensorTimer;
 
   bool _running = false;
+  bool _cameraPolling = false;
+  bool _sensorPolling = false;
 
   final Map<String, _PendingDetection> _pendingDetections = {};
 
@@ -45,7 +47,7 @@ class SecurityMonitorService {
     unawaited(_pollSensors());
 
     _cameraTimer = Timer.periodic(
-      const Duration(minutes: 1),
+      const Duration(seconds: 1),
       (_) => _pollCameras(),
     );
     _sensorTimer = Timer.periodic(
@@ -61,6 +63,8 @@ class SecurityMonitorService {
   }
 
   Future<void> _pollCameras() async {
+    if (_cameraPolling) return;
+    _cameraPolling = true;
     try {
       final devices = await _deviceRepository.listDevices();
       for (final device in devices) {
@@ -69,6 +73,8 @@ class SecurityMonitorService {
       }
     } catch (e, st) {
       debugPrint('Camera poll error: $e\n$st');
+    } finally {
+      _cameraPolling = false;
     }
   }
 
@@ -201,6 +207,8 @@ class SecurityMonitorService {
   }
 
   Future<void> _pollSensors() async {
+    if (_sensorPolling) return;
+    _sensorPolling = true;
     try {
       final devices = await _deviceRepository.listDevices();
       for (final device in devices) {
@@ -209,6 +217,8 @@ class SecurityMonitorService {
       }
     } catch (e, st) {
       debugPrint('Sensor poll error: $e\n$st');
+    } finally {
+      _sensorPolling = false;
     }
   }
 
@@ -294,12 +304,13 @@ class SecurityMonitorService {
   }
 
   String _formatScheduleWindow(FamilyMember member) {
-    final start = member.entryStart;
-    final end = member.entryEnd;
-    if (start == null || start.isEmpty || end == null || end.isEmpty) {
-      return '--';
-    }
-    return '$start - $end';
+    if (member.schedules.isEmpty) return '--';
+    final entries = member.schedules
+        .where((s) => s.start.isNotEmpty && s.end.isNotEmpty)
+        .map((s) => '${s.start} - ${s.end}')
+        .toList(growable: false);
+    if (entries.isEmpty) return '--';
+    return entries.join(', ');
   }
 
   Future<String> _storeImage(Uint8List bytes, String deviceId) async {

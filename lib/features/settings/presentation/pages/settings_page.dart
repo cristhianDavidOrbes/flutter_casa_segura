@@ -101,8 +101,6 @@ class SettingsPage extends StatelessWidget {
     switch (lang) {
       case 'en':
         return 'settings.language.en'.tr;
-      case 'hi':
-        return 'settings.language.hi'.tr;
       case 'es':
       default:
         return 'settings.language.es'.tr;

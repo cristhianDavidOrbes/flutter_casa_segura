@@ -10,13 +10,13 @@ class LocaleController extends GetxController {
   }
 
   static const String _storageKey = 'selected_locale';
+  static const Set<String> _supportedLanguageCodes = {'es', 'en'};
 
   final GetStorage _storage;
 
   final locales = <Locale>[
     const Locale('es', 'ES'),
     const Locale('en', 'US'),
-    const Locale('hi', 'IN'),
   ];
 
   final Rx<Locale> locale;
@@ -28,8 +28,12 @@ class LocaleController extends GetxController {
 
     final parts = saved.split('_');
     if (parts.isEmpty) return fallback;
-    if (parts.length == 1) return Locale(parts[0]);
-    return Locale(parts[0], parts[1]);
+    final candidate =
+        parts.length == 1 ? Locale(parts[0]) : Locale(parts[0], parts[1]);
+    if (!_supportedLanguageCodes.contains(candidate.languageCode)) {
+      return fallback;
+    }
+    return candidate;
   }
 
   @override

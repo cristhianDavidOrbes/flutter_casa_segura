@@ -56,8 +56,8 @@ class _HomePageState extends State<HomePage> {
   List<Device> _activeDevices = const [];
   bool _loading = true;
 
-  /// IDs que estÃ¡n â€œonlineâ€ segÃºn mDNS (refrescado periÃ³dico).
-  /// Se intentarÃ¡ mapear por `device_id`, luego por `host`, y por IP.
+  /// IDs que están “online” según mDNS (refrescado periódico).
+  /// Se intentará mapear por `device_id`, luego por `host`, y por IP.
   final Set<String> _onlineKeys = <String>{};
   Timer? _lanTimer;
 
@@ -88,145 +88,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   String? _deviceIp(String deviceId) => _deviceById(deviceId)?.ip?.trim();
-
-  List<FamilyMember> _mockFamilyMembers() {
-    const sampleData = [
-      {
-        'name': 'Ana Torres',
-        'relation': 'Madre',
-        'phone': '555-0101',
-        'email': 'ana.torres@example.com',
-      },
-      {
-        'name': 'Carlos Torres',
-        'relation': 'Padre',
-        'phone': '555-0102',
-        'email': 'carlos.torres@example.com',
-      },
-      {
-        'name': 'SofÃ­a Torres',
-        'relation': 'Hermana',
-        'phone': '555-0103',
-        'email': 'sofia.torres@example.com',
-      },
-      {
-        'name': 'Luis Torres',
-        'relation': 'Hermano',
-        'phone': '555-0104',
-        'email': 'luis.torres@example.com',
-      },
-      {
-        'name': 'Guillermo Torres',
-        'relation': 'Abuelo',
-        'phone': '555-0105',
-        'email': 'guillermo.torres@example.com',
-      },
-      {
-        'name': 'Marta Torres',
-        'relation': 'Abuela',
-        'phone': '555-0106',
-        'email': 'marta.torres@example.com',
-      },
-      {
-        'name': 'JosÃ© LÃ³pez',
-        'relation': 'TÃ­o',
-        'phone': '555-0107',
-        'email': 'jose.lopez@example.com',
-      },
-      {
-        'name': 'Laura LÃ³pez',
-        'relation': 'TÃ­a',
-        'phone': '555-0108',
-        'email': 'laura.lopez@example.com',
-      },
-      {
-        'name': 'Diego LÃ³pez',
-        'relation': 'Primo',
-        'phone': '555-0109',
-        'email': 'diego.lopez@example.com',
-      },
-      {
-        'name': 'Valentina LÃ³pez',
-        'relation': 'Prima',
-        'phone': '555-0110',
-        'email': 'valentina.lopez@example.com',
-      },
-      {
-        'name': 'Isabel PÃ©rez',
-        'relation': 'TÃ­a abuela',
-        'phone': '555-0111',
-        'email': 'isabel.perez@example.com',
-      },
-      {
-        'name': 'Camila PÃ©rez',
-        'relation': 'Prima',
-        'phone': '555-0112',
-        'email': 'camila.perez@example.com',
-      },
-      {
-        'name': 'Fernando PÃ©rez',
-        'relation': 'TÃ­o',
-        'phone': '555-0113',
-        'email': 'fernando.perez@example.com',
-      },
-      {
-        'name': 'Adriana PÃ©rez',
-        'relation': 'TÃ­a',
-        'phone': '555-0114',
-        'email': 'adriana.perez@example.com',
-      },
-      {
-        'name': 'Mateo Ruiz',
-        'relation': 'CuÃ±ado',
-        'phone': '555-0115',
-        'email': 'mateo.ruiz@example.com',
-      },
-      {
-        'name': 'Natalia Ruiz',
-        'relation': 'CuÃ±ada',
-        'phone': '555-0116',
-        'email': 'natalia.ruiz@example.com',
-      },
-      {
-        'name': 'Rodrigo Ruiz',
-        'relation': 'Sobrino',
-        'phone': '555-0117',
-        'email': 'rodrigo.ruiz@example.com',
-      },
-      {
-        'name': 'LucÃ­a Ruiz',
-        'relation': 'Sobrina',
-        'phone': '555-0118',
-        'email': 'lucia.ruiz@example.com',
-      },
-      {
-        'name': 'AndrÃ©s GÃ³mez',
-        'relation': 'Primo segundo',
-        'phone': '555-0119',
-        'email': 'andres.gomez@example.com',
-      },
-      {
-        'name': 'Gabriela GÃ³mez',
-        'relation': 'Prima segunda',
-        'phone': '555-0120',
-        'email': 'gabriela.gomez@example.com',
-      },
-    ];
-
-    final baseTs = DateTime.now().millisecondsSinceEpoch;
-    return sampleData.asMap().entries.map((entry) {
-      final index = entry.key;
-      final data = entry.value;
-      return FamilyMember(
-        id: null,
-        name: data['name'] ?? 'Familiar ${index + 1}',
-        relation: data['relation'] ?? 'Familiar',
-        phone: data['phone'],
-        email: data['email'],
-        createdAt: baseTs - (index * 60000),
-      );
-    }).toList();
-  }
 
   Set<String> _hostKeysFor(String deviceId, {String? host}) {
     final keys = <String>{};
@@ -325,15 +186,12 @@ class _HomePageState extends State<HomePage> {
       final famRows = await (await db.database).query(FamilyMember.tableName);
 
       // 2) Dispositivos registrados (DB local). Esto asegura que
-      //    SIEMPRE mostramos los registrados â€”aunque estÃ©n desconectadosâ€”.
+      //    SIEMPRE mostramos los registrados —aunque estén desconectados—.
       final devsLocal = await db.fetchAllDevices();
 
       final active = devsLocal.where((d) => d.homeActive).toList();
 
       final families = famRows.map(FamilyMember.fromMap).toList();
-      if (families.isEmpty) {
-        families.addAll(_mockFamilyMembers());
-      }
 
       setState(() {
         _family = families;
@@ -1330,7 +1188,7 @@ class _HomePageState extends State<HomePage> {
     final ultrasonic = data['ultrasonic_ok'];
     if (ultrasonic is bool) {
       metrics.add(
-        _MetricInfo(label: 'UltrasÃ³nico', value: ultrasonic ? 'OK' : 'Falla'),
+        _MetricInfo(label: 'Ultrasónico', value: ultrasonic ? 'OK' : 'Falla'),
       );
     }
 
@@ -1362,7 +1220,7 @@ class _HomePageState extends State<HomePage> {
       case _DeviceKind.servo:
         return 'Servo';
       case _DeviceKind.camera:
-        return 'CÃ¡mara';
+        return 'Cámara';
       case _DeviceKind.detector:
         return 'Detector';
     }
@@ -1454,7 +1312,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     if (posText != null)
                       Text(
-                        'PosiciÃ³n: $posText',
+                        'Posición: $posText',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1633,7 +1491,7 @@ class _HomePageState extends State<HomePage> {
                     child: Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: Text(
-                        online ? 'En lÃ­nea' : 'Sin conexiÃ³n',
+                        online ? 'En línea' : 'Sin conexión',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1746,7 +1604,7 @@ class _HomePageState extends State<HomePage> {
             ? const Center(child: CircularProgressIndicator())
             : CustomScrollView(
                 slivers: [
-                  // â€”â€” Avatar del usuario grande y centrado â€”â€”
+                  // —— Avatar del usuario grande y centrado ——
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 16, bottom: 8),
@@ -1767,7 +1625,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // â€”â€” SecciÃ³n Familia (carrusel con foco central) â€”â€”
+                  // —— Sección Familia (carrusel con foco central) ——
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -1849,7 +1707,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // â€”â€” SecciÃ³n Dispositivos registrados (DB) + estado LAN (mDNS) â€”â€”
+                  // —— Sección Dispositivos registrados (DB) + estado LAN (mDNS) ——
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
@@ -1913,7 +1771,7 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
       ),
-      // Barra inferior simple (sin botÃ³n extra de â€œagregarâ€, ya estÃ¡ en otra pantalla)
+      // Barra inferior simple (sin botón extra de “agregar”, ya está en otra pantalla)
       bottomNavigationBar: _BottomNav(
         onIntelligence: () {
           Get.to(() => const AiAssistantPage());
@@ -1940,7 +1798,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/* ======================= Widgets de SecciÃ³n ======================= */
+/* ======================= Widgets de Sección ======================= */
 
 class _FamilyCard extends StatelessWidget {
   const _FamilyCard({required this.member, this.onTap});
@@ -2342,6 +2200,9 @@ class _NavBtn extends StatelessWidget {
     );
   }
 }
+
+
+
 
 
 

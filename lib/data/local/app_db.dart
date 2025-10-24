@@ -1,5 +1,6 @@
 // lib/data/local/app_db.dart
 import 'dart:async';
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 
@@ -8,7 +9,7 @@ class AppDb {
   static final AppDb instance = AppDb._();
 
   static const _dbName = 'casa_segura.db';
-  static const _dbVersion = 3;
+  static const _dbVersion = 4;
 
   Database? _database;
 
@@ -39,6 +40,7 @@ class AppDb {
             profile_image_path TEXT,
             entry_start TEXT,
             entry_end TEXT,
+            schedules_json TEXT,
             created_at INTEGER NOT NULL
           )
         ''');
@@ -93,20 +95,42 @@ class AppDb {
             'ALTER TABLE ${Device.tableName} ADD COLUMN home_active INTEGER NOT NULL DEFAULT 0',
           );
         }
-        if (oldVersion < 3) {
-          await db.execute(
-            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN profile_image_path TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_start TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_end TEXT',
-          );
-        }
-      },
-    );
-  }
+          if (oldVersion < 3) {
+            await db.execute(
+              'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN profile_image_path TEXT',
+            );
+            await db.execute(
+              'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_start TEXT',
+            );
+            await db.execute(
+              'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_end TEXT',
+            );
+          }
+          if (oldVersion < 4) {
+            await db.execute(
+              'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN schedules_json TEXT',
+            );
+
+            final rows = await db.query(FamilyMember.tableName);
+            for (final row in rows) {
+              final start = (row['entry_start'] as String?)?.trim() ?? '';
+              final end = (row['entry_end'] as String?)?.trim() ?? '';
+              final schedules = (start.isNotEmpty && end.isNotEmpty)
+                  ? jsonEncode([
+                      {'start': start, 'end': end},
+                    ])
+                  : '[]';
+              await db.update(
+                FamilyMember.tableName,
+                {'schedules_json': schedules},
+                where: 'id = ?',
+                whereArgs: [row['id']],
+              );
+            }
+          }
+        },
+      );
+    }
 
   Future<void> close() async {
     if (_database != null) {
@@ -323,6 +347,20 @@ class AppDb {
 
 // ========================= Modelos =========================
 
+class FamilySchedule {
+  const FamilySchedule({required this.start, required this.end});
+
+  final String start;
+  final String end;
+
+  Map<String, dynamic> toJson() => {'start': start, 'end': end};
+
+  factory FamilySchedule.fromJson(Map<String, dynamic> json) => FamilySchedule(
+        start: (json['start'] as String? ?? '').trim(),
+        end: (json['end'] as String? ?? '').trim(),
+      );
+}
+
 class FamilyMember {
   const FamilyMember({
     this.id,
@@ -331,8 +369,7 @@ class FamilyMember {
     this.phone,
     this.email,
     this.profileImagePath,
-    this.entryStart,
-    this.entryEnd,
+    this.schedules = const <FamilySchedule>[],
     required this.createdAt,
   });
 
@@ -344,9 +381,21 @@ class FamilyMember {
   final String? phone;
   final String? email;
   final String? profileImagePath;
-  final String? entryStart;
-  final String? entryEnd;
+  final List<FamilySchedule> schedules;
   final int createdAt;
+
+  FamilySchedule? get primarySchedule =>
+      schedules.isNotEmpty ? schedules.first : null;
+
+  String? get entryStart {
+    final value = primarySchedule?.start.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  String? get entryEnd {
+    final value = primarySchedule?.end.trim();
+    return (value == null || value.isEmpty) ? null : value;
+  }
 
   FamilyMember copyWith({
     int? id,
@@ -355,8 +404,7 @@ class FamilyMember {
     String? phone,
     String? email,
     String? profileImagePath,
-    String? entryStart,
-    String? entryEnd,
+    List<FamilySchedule>? schedules,
     int? createdAt,
   }) {
     return FamilyMember(
@@ -366,38 +414,72 @@ class FamilyMember {
       phone: phone ?? this.phone,
       email: email ?? this.email,
       profileImagePath: profileImagePath ?? this.profileImagePath,
-      entryStart: entryStart ?? this.entryStart,
-      entryEnd: entryEnd ?? this.entryEnd,
+      schedules: schedules ?? this.schedules,
       createdAt: createdAt ?? this.createdAt,
     );
   }
 
   Map<String, Object?> toMap({bool includeId = true}) {
+    final primary = primarySchedule;
     final map = <String, Object?>{
       'name': name,
       'relation': relation,
       'phone': phone,
       'email': email,
       'profile_image_path': profileImagePath,
-      'entry_start': entryStart,
-      'entry_end': entryEnd,
+      'entry_start': primary?.start,
+      'entry_end': primary?.end,
+      'schedules_json': schedules.isEmpty
+          ? '[]'
+          : jsonEncode(
+              schedules
+                  .map((schedule) => schedule.toJson())
+                  .toList(growable: false),
+            ),
       'created_at': createdAt,
     };
     if (includeId && id != null) map['id'] = id;
     return map;
   }
 
-  static FamilyMember fromMap(Map<String, Object?> map) => FamilyMember(
-    id: map['id'] as int?,
-    name: map['name'] as String,
-    relation: map['relation'] as String,
-    phone: map['phone'] as String?,
-    email: map['email'] as String?,
-    profileImagePath: map['profile_image_path'] as String?,
-    entryStart: map['entry_start'] as String?,
-    entryEnd: map['entry_end'] as String?,
-    createdAt: map['created_at'] as int,
-  );
+  static FamilyMember fromMap(Map<String, Object?> map) {
+    final jsonRaw = map['schedules_json'] as String?;
+    List<FamilySchedule> parsedSchedules = const [];
+    if (jsonRaw != null && jsonRaw.trim().isNotEmpty) {
+      try {
+        final data = jsonDecode(jsonRaw) as List<dynamic>;
+        parsedSchedules = data
+            .whereType<Map<String, dynamic>>()
+            .map(FamilySchedule.fromJson)
+            .where((schedule) =>
+                schedule.start.isNotEmpty && schedule.end.isNotEmpty)
+            .toList();
+      } catch (_) {
+        parsedSchedules = const [];
+      }
+    }
+
+    if (parsedSchedules.isEmpty) {
+      final legacyStart = (map['entry_start'] as String?)?.trim() ?? '';
+      final legacyEnd = (map['entry_end'] as String?)?.trim() ?? '';
+      if (legacyStart.isNotEmpty && legacyEnd.isNotEmpty) {
+        parsedSchedules = [
+          FamilySchedule(start: legacyStart, end: legacyEnd),
+        ];
+      }
+    }
+
+    return FamilyMember(
+      id: map['id'] as int?,
+      name: map['name'] as String,
+      relation: map['relation'] as String,
+      phone: map['phone'] as String?,
+      email: map['email'] as String?,
+      profileImagePath: map['profile_image_path'] as String?,
+      schedules: parsedSchedules,
+      createdAt: map['created_at'] as int,
+    );
+  }
 }
 
 class Device {

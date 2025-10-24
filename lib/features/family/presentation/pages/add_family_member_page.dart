@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 
 import 'package:flutter_seguridad_en_casa/controllers/family_controller.dart';
+import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
 
 class AddFamilyMemberPage extends StatefulWidget {
   const AddFamilyMemberPage({super.key});
@@ -23,8 +24,7 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
 
   bool _saving = false;
   String? _scheduleError;
-  TimeOfDay? _entryStart;
-  TimeOfDay? _entryEnd;
+  final List<_ScheduleRange> _schedules = <_ScheduleRange>[];
   String? _photoPath;
   final ImagePicker _picker = ImagePicker();
 
@@ -62,14 +62,23 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
       _scheduleError = null;
     });
     try {
+      final schedules = _schedules
+          .where((range) => range.start != null && range.end != null)
+          .map(
+            (range) => FamilySchedule(
+              start: _formatTime(range.start!),
+              end: _formatTime(range.end!),
+            ),
+          )
+          .toList(growable: false);
+
       final member = await _controller.addMember(
         name: _nameCtrl.text.trim(),
         relation: _relationCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         profileImagePath: _photoPath,
-        entryStart: _entryStart != null ? _formatTime(_entryStart!) : null,
-        entryEnd: _entryEnd != null ? _formatTime(_entryEnd!) : null,
+        schedules: schedules,
       );
       if (!mounted) return;
       Get.back(result: member);
@@ -84,16 +93,26 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   }
 
   bool _validateSchedule() {
-    if (_entryStart == null || _entryEnd == null) {
+    if (_schedules.isEmpty) {
       _scheduleError = null;
       return true;
     }
-    final startMinutes = _entryStart!.hour * 60 + _entryStart!.minute;
-    final endMinutes = _entryEnd!.hour * 60 + _entryEnd!.minute;
-    if (endMinutes <= startMinutes) {
-      _scheduleError = 'family.add.scheduleInvalid'.tr;
-      return false;
+
+    for (final range in _schedules) {
+      final start = range.start;
+      final end = range.end;
+      if (start == null || end == null) {
+        _scheduleError = 'family.add.scheduleInvalid'.tr;
+        return false;
+      }
+      final startMinutes = start.hour * 60 + start.minute;
+      final endMinutes = end.hour * 60 + end.minute;
+      if (endMinutes <= startMinutes) {
+        _scheduleError = 'family.add.scheduleInvalid'.tr;
+        return false;
+      }
     }
+
     _scheduleError = null;
     return true;
   }
@@ -145,27 +164,29 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     }
   }
 
-  Future<void> _pickEntryStart() async {
-    final picked = await showTimePicker(
+  Future<void> _addSchedule() async {
+    final start = await showTimePicker(
       context: context,
-      initialTime: _entryStart ?? TimeOfDay.now(),
+      initialTime: TimeOfDay.now(),
     );
-    if (!mounted || picked == null) return;
-    setState(() {
-      _entryStart = picked;
-      _validateSchedule();
-    });
-  }
+    if (start == null) return;
 
-  Future<void> _pickEntryEnd() async {
-    final picked = await showTimePicker(
+    final end = await showTimePicker(
       context: context,
-      initialTime: _entryEnd ?? (_entryStart ?? TimeOfDay.now()),
+      initialTime: start,
     );
-    if (!mounted || picked == null) return;
+    if (end == null) return;
+
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+    if (endMinutes <= startMinutes) {
+      setState(() => _scheduleError = 'family.add.scheduleInvalid'.tr);
+      return;
+    }
+
     setState(() {
-      _entryEnd = picked;
-      _validateSchedule();
+      _schedules.add(_ScheduleRange(start: start, end: end));
+      _scheduleError = null;
     });
   }
 
@@ -280,27 +301,43 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
                     ?.copyWith(color: cs.onSurface),
               ),
               const SizedBox(height: 8),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _pickEntryStart,
-                      child: Text(
-                        _entryStart != null
-                            ? _formatTime(_entryStart!)
-                            : 'family.add.scheduleStart'.tr,
+                  if (_schedules.isEmpty)
+                    Text(
+                      'family.add.scheduleEmpty'.tr,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  for (final entry in _schedules.asMap().entries)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.schedule_outlined),
+                        title: Text(
+                          '${_formatTime(entry.value.start!)} - ${_formatTime(entry.value.end!)}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'family.add.scheduleRemove'.tr,
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            setState(() {
+                              _schedules.removeAt(entry.key);
+                              _scheduleError = null;
+                            });
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _pickEntryEnd,
-                      child: Text(
-                        _entryEnd != null
-                            ? _formatTime(_entryEnd!)
-                            : 'family.add.scheduleEnd'.tr,
-                      ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _addSchedule,
+                      icon: const Icon(Icons.add),
+                      label: Text('family.add.scheduleAdd'.tr),
                     ),
                   ),
                 ],
@@ -310,22 +347,6 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
                 Text(
                   _scheduleError!,
                   style: TextStyle(color: cs.error),
-                ),
-              ],
-              if (_entryStart != null || _entryEnd != null) ...[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _entryStart = null;
-                        _entryEnd = null;
-                        _scheduleError = null;
-                      });
-                    },
-                    child: Text('family.add.scheduleClear'.tr),
-                  ),
                 ),
               ],
               const SizedBox(height: 24),
@@ -365,6 +386,9 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   }
 }
 
+class _ScheduleRange {
+  _ScheduleRange({this.start, this.end});
 
-
-
+  TimeOfDay? start;
+  TimeOfDay? end;
+}

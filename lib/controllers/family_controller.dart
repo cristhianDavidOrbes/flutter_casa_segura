@@ -38,8 +38,7 @@ class FamilyController extends GetxController {
     String? phone,
     String? email,
     String? profileImagePath,
-    String? entryStart,
-    String? entryEnd,
+    List<FamilySchedule> schedules = const <FamilySchedule>[],
   }) async {
     try {
       final member = FamilyMember(
@@ -48,8 +47,7 @@ class FamilyController extends GetxController {
         phone: phone,
         email: email,
         profileImagePath: profileImagePath,
-        entryStart: entryStart,
-        entryEnd: entryEnd,
+        schedules: schedules,
         createdAt: DateTime.now().millisecondsSinceEpoch,
       );
       final inserted = await _repository.insertMember(member);

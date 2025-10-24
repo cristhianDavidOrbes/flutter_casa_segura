@@ -171,12 +171,22 @@ class _FamilyInfoBody extends StatelessWidget {
   }
 
   String _formatWindow(BuildContext context, FamilyMember? member) {
-    final start = member?.entryStart;
-    final end = member?.entryEnd;
-    if (start == null || start.isEmpty || end == null || end.isEmpty) {
+    if (member == null || member.schedules.isEmpty) {
       return '--';
     }
-    return '${_formatTime(context, start)} - ${_formatTime(context, end)}';
+
+    final entries = member.schedules
+        .where((schedule) => schedule.start.isNotEmpty && schedule.end.isNotEmpty)
+        .map(
+          (schedule) =>
+              '${_formatTime(context, schedule.start)} - ${_formatTime(context, schedule.end)}',
+        )
+        .toList(growable: false);
+
+    if (entries.isEmpty) {
+      return '--';
+    }
+    return entries.join(', ');
   }
 
   String _formatTime(BuildContext context, String value) {

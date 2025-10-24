@@ -79,8 +79,6 @@ class LanguageSelectorSheet extends StatelessWidget {
     switch (locale.languageCode) {
       case 'en':
         return 'settings.language.en';
-      case 'hi':
-        return 'settings.language.hi';
       case 'es':
       default:
         return 'settings.language.es';

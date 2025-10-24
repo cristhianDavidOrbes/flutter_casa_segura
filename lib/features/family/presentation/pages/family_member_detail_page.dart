@@ -155,20 +155,23 @@ class _HeaderCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          if ((member.entryStart ?? '').isNotEmpty &&
-              (member.entryEnd ?? '').isNotEmpty) ...[
-            Row(
-              children: [
-                const Icon(Icons.schedule),
-                const SizedBox(width: 8),
-                Text(
-                  'family.detail.schedule.window'.trParams({
-                    'start': _formatTime(context, member.entryStart),
-                    'end': _formatTime(context, member.entryEnd),
-                  }),
+          if (member.schedules.isNotEmpty) ...[
+            for (final schedule in member.schedules)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule),
+                    const SizedBox(width: 8),
+                    Text(
+                      'family.detail.schedule.window'.trParams({
+                        'start': _formatTime(context, schedule.start),
+                        'end': _formatTime(context, schedule.end),
+                      }),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
             const SizedBox(height: 12),
           ],
           Row(
