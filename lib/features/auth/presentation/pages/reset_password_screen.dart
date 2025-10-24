@@ -48,18 +48,21 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       );
 
       Get.offAll(
-        () => LoginScreen(circleNotifier: CircleStateNotifier()..moveToBottom()),
+        () =>
+            LoginScreen(circleNotifier: CircleStateNotifier()..moveToBottom()),
       );
     } on AppFailure catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar la contrasena: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error al actualizar la contrasena: ${e.toString()}'),
+          ),
         );
       }
     } finally {

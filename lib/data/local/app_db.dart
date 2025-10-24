@@ -8,7 +8,7 @@ class AppDb {
   static final AppDb instance = AppDb._();
 
   static const _dbName = 'casa_segura.db';
-  static const _dbVersion = 2;
+  static const _dbVersion = 3;
 
   Database? _database;
 
@@ -36,6 +36,9 @@ class AppDb {
             relation TEXT NOT NULL,
             phone TEXT,
             email TEXT,
+            profile_image_path TEXT,
+            entry_start TEXT,
+            entry_end TEXT,
             created_at INTEGER NOT NULL
           )
         ''');
@@ -88,6 +91,17 @@ class AppDb {
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE ${Device.tableName} ADD COLUMN home_active INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN profile_image_path TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_start TEXT',
+          );
+          await db.execute(
+            'ALTER TABLE ${FamilyMember.tableName} ADD COLUMN entry_end TEXT',
           );
         }
       },
@@ -316,6 +330,9 @@ class FamilyMember {
     required this.relation,
     this.phone,
     this.email,
+    this.profileImagePath,
+    this.entryStart,
+    this.entryEnd,
     required this.createdAt,
   });
 
@@ -326,6 +343,9 @@ class FamilyMember {
   final String relation;
   final String? phone;
   final String? email;
+  final String? profileImagePath;
+  final String? entryStart;
+  final String? entryEnd;
   final int createdAt;
 
   FamilyMember copyWith({
@@ -334,6 +354,9 @@ class FamilyMember {
     String? relation,
     String? phone,
     String? email,
+    String? profileImagePath,
+    String? entryStart,
+    String? entryEnd,
     int? createdAt,
   }) {
     return FamilyMember(
@@ -342,6 +365,9 @@ class FamilyMember {
       relation: relation ?? this.relation,
       phone: phone ?? this.phone,
       email: email ?? this.email,
+      profileImagePath: profileImagePath ?? this.profileImagePath,
+      entryStart: entryStart ?? this.entryStart,
+      entryEnd: entryEnd ?? this.entryEnd,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -352,6 +378,9 @@ class FamilyMember {
       'relation': relation,
       'phone': phone,
       'email': email,
+      'profile_image_path': profileImagePath,
+      'entry_start': entryStart,
+      'entry_end': entryEnd,
       'created_at': createdAt,
     };
     if (includeId && id != null) map['id'] = id;
@@ -364,6 +393,9 @@ class FamilyMember {
     relation: map['relation'] as String,
     phone: map['phone'] as String?,
     email: map['email'] as String?,
+    profileImagePath: map['profile_image_path'] as String?,
+    entryStart: map['entry_start'] as String?,
+    entryEnd: map['entry_end'] as String?,
     createdAt: map['created_at'] as int,
   );
 }

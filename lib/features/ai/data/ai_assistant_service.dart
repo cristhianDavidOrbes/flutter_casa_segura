@@ -14,16 +14,28 @@ class AiAssistantService {
   static const _model =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
 
+  static const _systemPrompt = '''
+You are the Casa Segura safety assistant. You only discuss smart-home security topics: device status, alerts, detections, door controls, safety tips, summaries of events, and procedures. If a user asks something unrelated, politely redirect the conversation back to home security. Never fabricate data; if you do not have information, say so.''';
+
   Future<String> generateReply(List<AiMessage> history) async {
     final apiKey = Environment.geminiApiKey;
     if (apiKey == null || apiKey.isEmpty) {
       return 'Parece que aún no configuraste tu clave de Gemini. Agrega GEMINI_API_KEY al archivo .env para habilitar las respuestas inteligentes.';
     }
 
+    final trimmedHistory = history.length > 12
+        ? history.sublist(history.length - 12)
+        : history;
+
     try {
       final uri = Uri.parse('$_model?key=$apiKey');
       final payload = {
-        'contents': history
+        'systemInstruction': {
+          'parts': [
+            {'text': _systemPrompt},
+          ],
+        },
+        'contents': trimmedHistory
             .map(
               (message) => {
                 'role': message.role == AiMessageRole.user ? 'user' : 'model',

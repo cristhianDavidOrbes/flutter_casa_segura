@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
-
 class SplashScreen extends StatefulWidget {
   final Widget nextPage;
 
@@ -50,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
       builder: (context, snapshot) {
         final initialized =
             snapshot.connectionState == ConnectionState.done &&
-                _videoController.value.isInitialized;
+            _videoController.value.isInitialized;
 
         Widget inner;
         if (initialized) {
@@ -61,9 +60,7 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           inner = const AspectRatio(
             aspectRatio: 16 / 9,
-            child: Center(
-              child: _SplashLoaderFallback(),
-            ),
+            child: Center(child: _SplashLoaderFallback()),
           );
         }
 
@@ -73,10 +70,7 @@ class _SplashScreenState extends State<SplashScreen> {
           decoration: BoxDecoration(
             color: cs.surface.withOpacity(0.18),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(
-              color: cs.onPrimary.withOpacity(0.6),
-              width: 3,
-            ),
+            border: Border.all(color: cs.onPrimary.withOpacity(0.6), width: 3),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.2),
@@ -99,9 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final cs = Theme.of(context).colorScheme;
     final splash = Scaffold(
       backgroundColor: cs.primary,
-      body: Center(
-        child: _buildVideoLoader(context),
-      ),
+      body: Center(child: _buildVideoLoader(context)),
     );
 
     return Stack(
@@ -109,16 +101,9 @@ class _SplashScreenState extends State<SplashScreen> {
       children: [
         TickerMode(
           enabled: _showNext,
-          child: Offstage(
-            offstage: !_showNext,
-            child: widget.nextPage,
-          ),
+          child: Offstage(offstage: !_showNext, child: widget.nextPage),
         ),
-        Offstage(
-          offstage: _showNext,
-          child: splash,
-        ),
-
+        Offstage(offstage: _showNext, child: splash),
       ],
     );
   }

@@ -113,10 +113,7 @@ class RemoteDevicePresence {
 }
 
 class RemoteCommandHandle {
-  const RemoteCommandHandle({
-    required this.id,
-    required this.actuatorId,
-  });
+  const RemoteCommandHandle({required this.id, required this.actuatorId});
 
   final int id;
   final String actuatorId;
@@ -134,8 +131,7 @@ class RemoteDeviceService {
           .stream(primaryKey: ['id'])
           .eq('device_id', deviceId)
           .map(
-            (rows) =>
-                rows.map((row) => RemoteLiveSignal.fromMap(row)).toList(),
+            (rows) => rows.map((row) => RemoteLiveSignal.fromMap(row)).toList(),
           ),
     );
   }
@@ -147,8 +143,7 @@ class RemoteDeviceService {
           .stream(primaryKey: ['id'])
           .eq('device_id', deviceId)
           .map(
-            (rows) =>
-                rows.map((row) => RemoteActuator.fromMap(row)).toList(),
+            (rows) => rows.map((row) => RemoteActuator.fromMap(row)).toList(),
           ),
     );
   }
@@ -179,10 +174,7 @@ class RemoteDeviceService {
   }) async {
     final response = await _client
         .from('actuator_commands')
-        .insert({
-          'actuator_id': actuatorId,
-          'command': command,
-        })
+        .insert({'actuator_id': actuatorId, 'command': command})
         .select('id, actuator_id')
         .limit(1);
 
@@ -213,7 +205,9 @@ class RemoteDeviceService {
     }
     target ??= actuators.isNotEmpty ? actuators.first : null;
     if (target == null) {
-      throw StateError('No se encontraron actuadores para el dispositivo $deviceId');
+      throw StateError(
+        'No se encontraron actuadores para el dispositivo $deviceId',
+      );
     }
 
     return enqueueCommand(
@@ -293,15 +287,12 @@ class RemoteDeviceService {
     final now = _utcNowIso();
     await _client
         .from('device_remote_flags')
-        .upsert(
-          {
-            'device_id': deviceId,
-            'ping_requested': true,
-            'ping_requested_at': now,
-            'ping_status': 'pending',
-          },
-          onConflict: 'device_id',
-        )
+        .upsert({
+          'device_id': deviceId,
+          'ping_requested': true,
+          'ping_requested_at': now,
+          'ping_status': 'pending',
+        }, onConflict: 'device_id')
         .select('device_id');
   }
 
@@ -310,15 +301,12 @@ class RemoteDeviceService {
     final now = _utcNowIso();
     await _client
         .from('device_remote_flags')
-        .upsert(
-          {
-            'device_id': deviceId,
-            'forget_requested': true,
-            'forget_requested_at': now,
-            'forget_status': 'pending',
-          },
-          onConflict: 'device_id',
-        )
+        .upsert({
+          'device_id': deviceId,
+          'forget_requested': true,
+          'forget_requested_at': now,
+          'forget_status': 'pending',
+        }, onConflict: 'device_id')
         .select('device_id');
   }
 
@@ -338,17 +326,12 @@ class RemoteDeviceService {
   Future<void> _ensureSystemActuator(String deviceId) async {
     final now = DateTime.now().toUtc().toIso8601String();
     try {
-      await _client
-          .from('actuators')
-          .upsert({
-            'device_id': deviceId,
-            'name': 'system',
-            'kind': 'system',
-            'meta': {
-              'role': 'factory-reset',
-              'ensured_at': now,
-            },
-          }, onConflict: 'device_id,name');
+      await _client.from('actuators').upsert({
+        'device_id': deviceId,
+        'name': 'system',
+        'kind': 'system',
+        'meta': {'role': 'factory-reset', 'ensured_at': now},
+      }, onConflict: 'device_id,name');
     } catch (_) {
       // Es posible que ya exista; ignoramos el error.
     }

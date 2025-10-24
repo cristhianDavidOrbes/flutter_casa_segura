@@ -111,8 +111,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       if (!seen.add(value.toLowerCase())) continue;
       final withScheme =
           value.startsWith('http://') || value.startsWith('https://')
-              ? value
-              : 'http://$value';
+          ? value
+          : 'http://$value';
       uris.add(Uri.parse('$withScheme$path'));
     }
     return uris;
@@ -281,14 +281,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
       final suffix = lastError != null ? ' ($lastError)' : '';
       var hint = '';
-      if (_isPrivateIp(lastAddress) &&
-          lastErrorLower.contains('timed out')) {
+      if (_isPrivateIp(lastAddress) && lastErrorLower.contains('timed out')) {
         hint = '\nRecuerda que el ping directo solo funciona en la misma red.';
       }
       if (_remoteLastUpdate != null) {
         final ago = DateTime.now().difference(_remoteLastUpdate!);
-        hint +=
-            '\nUltimo latido via Supabase hace ${_formatElapsed(ago)}.';
+        hint += '\nUltimo latido via Supabase hace ${_formatElapsed(ago)}.';
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -336,9 +334,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo solicitar ping remoto: $e'),
-        ),
+        SnackBar(content: Text('No se pudo solicitar ping remoto: $e')),
       );
     }
   }
@@ -414,21 +410,13 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       }
     } on StateError catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.message,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No se pudo completar el reinicio remoto: $e',
-          ),
-        ),
+        SnackBar(content: Text('No se pudo completar el reinicio remoto: $e')),
       );
     }
   }
@@ -493,14 +481,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     return byType || byData;
   }
 
-  Map<String, dynamic>? get _effectiveLiveData =>
-      _liveData ?? _remoteLiveData;
+  Map<String, dynamic>? get _effectiveLiveData => _liveData ?? _remoteLiveData;
 
   DateTime? get _effectiveLastUpdate =>
       _liveData != null ? _lastUpdate : _remoteLastUpdate;
 
-  bool get _showingRemoteData =>
-      _liveData == null && _remoteLiveData != null;
+  bool get _showingRemoteData => _liveData == null && _remoteLiveData != null;
 
   bool get _showCameraCard {
     if (!_cameraEnabled) return false;
@@ -658,11 +644,13 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
     _currentIp = widget.ip;
 
-    _cameraEnabled = _stringLooksLikeCamera(widget.type) ||
+    _cameraEnabled =
+        _stringLooksLikeCamera(widget.type) ||
         _stringLooksLikeCamera(widget.name);
 
-    _presenceSub =
-        _remoteService.watchDevicePresence(widget.deviceId).listen((presence) {
+    _presenceSub = _remoteService.watchDevicePresence(widget.deviceId).listen((
+      presence,
+    ) {
       if (!mounted || presence == null) return;
       final seen = presence.lastSeenAt;
       final ip = presence.ip?.trim();
@@ -751,20 +739,23 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   }
 
   void _loadRemoteSignalsOnce({int attempt = 0}) {
-    _remoteService.fetchLiveSignals(widget.deviceId).then((signals) {
-      if (!mounted) return;
-      _onRemoteSignals(signals);
-    }).catchError((error, stackTrace) {
-      debugPrint(
-        'No se pudieron obtener las señales remotas (intento ${attempt + 1}): $error',
-      );
-      if (!mounted) return;
-      Future.delayed(const Duration(seconds: 5), () {
-        if (mounted) {
-          _loadRemoteSignalsOnce(attempt: attempt + 1);
-        }
-      });
-    });
+    _remoteService
+        .fetchLiveSignals(widget.deviceId)
+        .then((signals) {
+          if (!mounted) return;
+          _onRemoteSignals(signals);
+        })
+        .catchError((error, stackTrace) {
+          debugPrint(
+            'No se pudieron obtener las señales remotas (intento ${attempt + 1}): $error',
+          );
+          if (!mounted) return;
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted) {
+              _loadRemoteSignalsOnce(attempt: attempt + 1);
+            }
+          });
+        });
   }
 
   void _handleRemoteFlags(DeviceRemoteFlags? flags) {
@@ -775,12 +766,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     });
     if (flags == null) return;
 
-    if (_awaitingRemotePing && flags.pingAcked && !(previous?.pingAcked ?? false)) {
+    if (_awaitingRemotePing &&
+        flags.pingAcked &&
+        !(previous?.pingAcked ?? false)) {
       _awaitingRemotePing = false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ping remoto confirmado por Supabase.'),
-        ),
+        const SnackBar(content: Text('Ping remoto confirmado por Supabase.')),
       );
     }
 
@@ -809,9 +800,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         snapshotPath = snapshot;
       }
       final streamUrl = signal.extra['stream'];
-      if (!streamHint &&
-          streamUrl is String &&
-          streamUrl.trim().isNotEmpty) {
+      if (!streamHint && streamUrl is String && streamUrl.trim().isNotEmpty) {
         streamHint = true;
       }
 
@@ -881,7 +870,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   void _updateRemoteSnapshotPath(String path) {
     final parsed = _parseStoragePath(path);
     if (parsed == null) return;
-    final changed = parsed.bucket != _remoteSnapshotBucket ||
+    final changed =
+        parsed.bucket != _remoteSnapshotBucket ||
         parsed.object != _remoteSnapshotObjectKey;
     if (changed) {
       _remoteSnapshotBucket = parsed.bucket;
@@ -966,8 +956,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
           ? '$signed&cb=$cacheBuster'
           : '$signed?cb=$cacheBuster';
       setState(() {
-        if (_remoteSnapshotUrl != null &&
-            _remoteSnapshotUrl != busted) {
+        if (_remoteSnapshotUrl != null && _remoteSnapshotUrl != busted) {
           _remoteSnapshotHistory.add(_remoteSnapshotUrl!);
           while (_remoteSnapshotHistory.length > 3) {
             _remoteSnapshotHistory.removeAt(0);
@@ -998,7 +987,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
           if (mounted) {
             setState(() {});
           }
-          debugPrint('Snapshot remoto deshabilitado tras $_remoteSnapshotMisses intentos fallidos.');
+          debugPrint(
+            'Snapshot remoto deshabilitado tras $_remoteSnapshotMisses intentos fallidos.',
+          );
         }
       } else {
         debugPrint('Error creando URL firmada del snapshot: $error');
@@ -1074,12 +1065,16 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     for (final entry in entries) {
       final name = _entryName(entry);
       if (name == null || name.isEmpty) continue;
-      final fullPath = normalizedPrefix.isEmpty ? name : '$normalizedPrefix/$name';
+      final fullPath = normalizedPrefix.isEmpty
+          ? name
+          : '$normalizedPrefix/$name';
       final isFile = _isFile(entry, name);
       if (isFile && name == fileName) {
         debugPrint('Snapshot encontrado en $fullPath');
         if (fullPath != _remoteSnapshotObjectKey) {
-          debugPrint('Snapshot encontrado en $fullPath (antes $_remoteSnapshotObjectKey)');
+          debugPrint(
+            'Snapshot encontrado en $fullPath (antes $_remoteSnapshotObjectKey)',
+          );
         }
         return fullPath;
       }
@@ -1314,10 +1309,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
   }
 
-  void _mergeRemoteSignal(
-    Map<String, dynamic> out,
-    RemoteLiveSignal signal,
-  ) {
+  void _mergeRemoteSignal(Map<String, dynamic> out, RemoteLiveSignal signal) {
     final rawName = signal.name.trim();
     final name = rawName.isEmpty ? signal.id : rawName;
 
@@ -1332,8 +1324,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     out[name] = entry;
 
     if (signal.extra.isNotEmpty) {
-      for (final MapEntry<dynamic, dynamic> item
-          in signal.extra.entries) {
+      for (final MapEntry<dynamic, dynamic> item in signal.extra.entries) {
         out[item.key.toString()] = item.value;
       }
     }
@@ -1706,8 +1697,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
                       const Spacer(),
 
-                      if (dataSourceLabel != null &&
-                          dataSourceLabel.isNotEmpty)
+                      if (dataSourceLabel != null && dataSourceLabel.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -1934,11 +1924,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                     ),
                   ),
 
-                  SizedBox(
-                    height: 240,
-
-                    child: _buildCameraContent(),
-                  ),
+                  SizedBox(height: 240, child: _buildCameraContent()),
                 ],
               ),
             ),
@@ -1998,13 +1984,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_remoteSnapshotBucket != null) {
-      return _CameraPlaceholder(
-        onRetry: _triggerSnapshotRefresh,
-      );
+      return _CameraPlaceholder(onRetry: _triggerSnapshotRefresh);
     }
-    return const Center(
-      child: Text('Sin stream detectado.'),
-    );
+    return const Center(child: Text('Sin stream detectado.'));
   }
 
   bool _isPrivateIp(String? value) {
@@ -2054,7 +2036,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
           return 'Ping remoto confirmado hace $since.';
         case 'pending':
           final since = flags.pingRequestedAt != null
-              ? _formatElapsed(DateTime.now().difference(flags.pingRequestedAt!))
+              ? _formatElapsed(
+                  DateTime.now().difference(flags.pingRequestedAt!),
+                )
               : 'pocos segundos';
           return 'Ping remoto pendiente (solicitado hace $since).';
         case 'error':
@@ -2068,7 +2052,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       switch (flags.forgetStatus) {
         case 'done':
           final since = flags.forgetProcessedAt != null
-              ? _formatElapsed(DateTime.now().difference(flags.forgetProcessedAt!))
+              ? _formatElapsed(
+                  DateTime.now().difference(flags.forgetProcessedAt!),
+                )
               : 'instantes';
           return 'Olvido remoto completado hace $since.';
         case 'ack':
@@ -2078,7 +2064,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
           return 'Olvido remoto aceptado. El dispositivo cambiara a modo AP (ack hace $since).';
         case 'pending':
           final since = flags.forgetRequestedAt != null
-              ? _formatElapsed(DateTime.now().difference(flags.forgetRequestedAt!))
+              ? _formatElapsed(
+                  DateTime.now().difference(flags.forgetRequestedAt!),
+                )
               : 'pocos segundos';
           return 'Olvido remoto en espera (solicitado hace $since).';
         default:
@@ -2200,9 +2188,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
     final sourceLabel = _endpointUsed?.isNotEmpty == true
         ? _endpointUsed!
-        : (_remoteSourceLabel?.isNotEmpty == true
-            ? _remoteSourceLabel!
-            : null);
+        : (_remoteSourceLabel?.isNotEmpty == true ? _remoteSourceLabel! : null);
 
     if (sourceLabel != null) {
       entries.add(_kv('Fuente', sourceLabel));
@@ -2414,7 +2400,10 @@ class _MjpegViewState extends State<_MjpegView> {
 
       final uri = Uri.parse(widget.url);
       final request = await client.getUrl(uri);
-      request.headers.set(HttpHeaders.acceptHeader, 'multipart/x-mixed-replace');
+      request.headers.set(
+        HttpHeaders.acceptHeader,
+        'multipart/x-mixed-replace',
+      );
       request.headers.set(HttpHeaders.connectionHeader, 'keep-alive');
 
       final response = await request.close();
@@ -2426,8 +2415,9 @@ class _MjpegViewState extends State<_MjpegView> {
         return;
       }
 
-      final boundary =
-          _extractBoundary(response.headers.contentType?.parameters['boundary']);
+      final boundary = _extractBoundary(
+        response.headers.contentType?.parameters['boundary'],
+      );
 
       if (boundary == null) {
         client.close(force: true);
@@ -2710,7 +2700,11 @@ class _CameraPlaceholder extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.photo_camera_back_outlined, size: 48, color: cs.onSurfaceVariant),
+          Icon(
+            Icons.photo_camera_back_outlined,
+            size: 48,
+            color: cs.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             'Esperando imagen remota...',

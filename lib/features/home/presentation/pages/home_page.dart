@@ -1,6 +1,7 @@
-// lib/features/home/presentation/pages/home_page.dart
+﻿// lib/features/home/presentation/pages/home_page.dart
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -18,6 +19,13 @@ import 'package:flutter_seguridad_en_casa/services/lan_discovery_service.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
 import 'package:flutter_seguridad_en_casa/features/ai/presentation/pages/ai_assistant_page.dart';
+import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/add_family_member_page.dart';
+import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/family_list_page.dart';
+import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/family_member_detail_page.dart';
+import 'package:flutter_seguridad_en_casa/features/security/application/security_monitor_service.dart';
+import 'package:flutter_seguridad_en_casa/features/security/presentation/pages/notifications_page.dart';
+import 'package:flutter_seguridad_en_casa/features/settings/presentation/widgets/language_selector_sheet.dart';
+import 'package:flutter_seguridad_en_casa/features/settings/presentation/pages/settings_page.dart';
 
 class _ServoSnapshot {
   const _ServoSnapshot({this.on, this.pos});
@@ -48,8 +56,8 @@ class _HomePageState extends State<HomePage> {
   List<Device> _activeDevices = const [];
   bool _loading = true;
 
-  /// IDs que están “online” según mDNS (refrescado periódico).
-  /// Se intentará mapear por `device_id`, luego por `host`, y por IP.
+  /// IDs que estÃ¡n â€œonlineâ€ segÃºn mDNS (refrescado periÃ³dico).
+  /// Se intentarÃ¡ mapear por `device_id`, luego por `host`, y por IP.
   final Set<String> _onlineKeys = <String>{};
   Timer? _lanTimer;
 
@@ -96,7 +104,7 @@ class _HomePageState extends State<HomePage> {
         'email': 'carlos.torres@example.com',
       },
       {
-        'name': 'Sofía Torres',
+        'name': 'SofÃ­a Torres',
         'relation': 'Hermana',
         'phone': '555-0103',
         'email': 'sofia.torres@example.com',
@@ -120,62 +128,62 @@ class _HomePageState extends State<HomePage> {
         'email': 'marta.torres@example.com',
       },
       {
-        'name': 'José López',
-        'relation': 'Tío',
+        'name': 'JosÃ© LÃ³pez',
+        'relation': 'TÃ­o',
         'phone': '555-0107',
         'email': 'jose.lopez@example.com',
       },
       {
-        'name': 'Laura López',
-        'relation': 'Tía',
+        'name': 'Laura LÃ³pez',
+        'relation': 'TÃ­a',
         'phone': '555-0108',
         'email': 'laura.lopez@example.com',
       },
       {
-        'name': 'Diego López',
+        'name': 'Diego LÃ³pez',
         'relation': 'Primo',
         'phone': '555-0109',
         'email': 'diego.lopez@example.com',
       },
       {
-        'name': 'Valentina López',
+        'name': 'Valentina LÃ³pez',
         'relation': 'Prima',
         'phone': '555-0110',
         'email': 'valentina.lopez@example.com',
       },
       {
-        'name': 'Isabel Pérez',
-        'relation': 'Tía abuela',
+        'name': 'Isabel PÃ©rez',
+        'relation': 'TÃ­a abuela',
         'phone': '555-0111',
         'email': 'isabel.perez@example.com',
       },
       {
-        'name': 'Camila Pérez',
+        'name': 'Camila PÃ©rez',
         'relation': 'Prima',
         'phone': '555-0112',
         'email': 'camila.perez@example.com',
       },
       {
-        'name': 'Fernando Pérez',
-        'relation': 'Tío',
+        'name': 'Fernando PÃ©rez',
+        'relation': 'TÃ­o',
         'phone': '555-0113',
         'email': 'fernando.perez@example.com',
       },
       {
-        'name': 'Adriana Pérez',
-        'relation': 'Tía',
+        'name': 'Adriana PÃ©rez',
+        'relation': 'TÃ­a',
         'phone': '555-0114',
         'email': 'adriana.perez@example.com',
       },
       {
         'name': 'Mateo Ruiz',
-        'relation': 'Cuñado',
+        'relation': 'CuÃ±ado',
         'phone': '555-0115',
         'email': 'mateo.ruiz@example.com',
       },
       {
         'name': 'Natalia Ruiz',
-        'relation': 'Cuñada',
+        'relation': 'CuÃ±ada',
         'phone': '555-0116',
         'email': 'natalia.ruiz@example.com',
       },
@@ -186,19 +194,19 @@ class _HomePageState extends State<HomePage> {
         'email': 'rodrigo.ruiz@example.com',
       },
       {
-        'name': 'Lucía Ruiz',
+        'name': 'LucÃ­a Ruiz',
         'relation': 'Sobrina',
         'phone': '555-0118',
         'email': 'lucia.ruiz@example.com',
       },
       {
-        'name': 'Andrés Gómez',
+        'name': 'AndrÃ©s GÃ³mez',
         'relation': 'Primo segundo',
         'phone': '555-0119',
         'email': 'andres.gomez@example.com',
       },
       {
-        'name': 'Gabriela Gómez',
+        'name': 'Gabriela GÃ³mez',
         'relation': 'Prima segunda',
         'phone': '555-0120',
         'email': 'gabriela.gomez@example.com',
@@ -281,6 +289,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    SecurityMonitorService.instance.start();
     _pageCtrl.addListener(() => setState(() => _page = _pageCtrl.page ?? 0));
     _refresh();
     _startLanPolling();
@@ -316,7 +325,7 @@ class _HomePageState extends State<HomePage> {
       final famRows = await (await db.database).query(FamilyMember.tableName);
 
       // 2) Dispositivos registrados (DB local). Esto asegura que
-      //    SIEMPRE mostramos los registrados —aunque estén desconectados—.
+      //    SIEMPRE mostramos los registrados â€”aunque estÃ©n desconectadosâ€”.
       final devsLocal = await db.fetchAllDevices();
 
       final active = devsLocal.where((d) => d.homeActive).toList();
@@ -1228,10 +1237,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _openSettings() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Configuración pendiente.')));
+    Get.to(() => const SettingsPage());
   }
+
 
   Widget _buildDevicesGrid() {
     const spacing = 12.0;
@@ -1322,7 +1330,7 @@ class _HomePageState extends State<HomePage> {
     final ultrasonic = data['ultrasonic_ok'];
     if (ultrasonic is bool) {
       metrics.add(
-        _MetricInfo(label: 'Ultrasónico', value: ultrasonic ? 'OK' : 'Falla'),
+        _MetricInfo(label: 'UltrasÃ³nico', value: ultrasonic ? 'OK' : 'Falla'),
       );
     }
 
@@ -1354,7 +1362,7 @@ class _HomePageState extends State<HomePage> {
       case _DeviceKind.servo:
         return 'Servo';
       case _DeviceKind.camera:
-        return 'Cámara';
+        return 'CÃ¡mara';
       case _DeviceKind.detector:
         return 'Detector';
     }
@@ -1427,7 +1435,7 @@ class _HomePageState extends State<HomePage> {
       return LayoutBuilder(
         builder: (context, constraints) {
           final pos = servoData?['pos'];
-          final posText = pos is num ? '${pos.round()}°' : null;
+          final posText = pos is num ? '${pos.round()}Â°' : null;
           final buttonWidth = math.min(
             math.max(constraints.maxWidth * 0.5, 110.0),
             isWide ? 160.0 : 136.0,
@@ -1446,7 +1454,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     if (posText != null)
                       Text(
-                        'Posición: $posText',
+                        'PosiciÃ³n: $posText',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1625,7 +1633,7 @@ class _HomePageState extends State<HomePage> {
                     child: Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: Text(
-                        online ? 'En línea' : 'Sin conexión',
+                        online ? 'En lÃ­nea' : 'Sin conexiÃ³n',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1712,17 +1720,22 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inicio'),
+        title: Text('home.title'.tr),
         actions: [
           const ThemeToggleButton(),
           IconButton(
-            tooltip: 'Configuración',
+            tooltip: 'home.notifications'.tr,
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => Get.to(() => const NotificationsPage()),
+          ),
+          IconButton(
+            tooltip: 'home.settings'.tr,
             icon: const Icon(Icons.settings_outlined),
             onPressed: _openSettings,
           ),
         ],
         leading: IconButton(
-          tooltip: 'Cerrar sesión',
+          tooltip: 'home.logout'.tr,
           icon: const Icon(Icons.logout),
           onPressed: _logout,
         ),
@@ -1733,7 +1746,7 @@ class _HomePageState extends State<HomePage> {
             ? const Center(child: CircularProgressIndicator())
             : CustomScrollView(
                 slivers: [
-                  // —— Avatar del usuario grande y centrado ——
+                  // â€”â€” Avatar del usuario grande y centrado â€”â€”
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 16, bottom: 8),
@@ -1754,7 +1767,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // —— Sección Familia (carrusel con foco central) ——
+                  // â€”â€” SecciÃ³n Familia (carrusel con foco central) â€”â€”
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -1763,7 +1776,7 @@ class _HomePageState extends State<HomePage> {
                           Icon(Icons.family_restroom, color: cs.primary),
                           const SizedBox(width: 8),
                           Text(
-                            'Familia',
+                            'home.family'.tr,
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: cs.primary,
@@ -1785,16 +1798,10 @@ class _HomePageState extends State<HomePage> {
                           if (_family.isEmpty)
                             _EmptyInline(
                               icon: Icons.person_add_alt_1,
-                              title: 'Sin familiares',
-                              actionText: 'Añadir',
+                              title: 'home.family.empty'.tr,
+                              actionText: 'home.family.add'.tr,
                               onAction: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Pantalla de familia pendiente.',
-                                    ),
-                                  ),
-                                );
+                                Get.to(() => const AddFamilyMemberPage());
                               },
                             )
                           else
@@ -1824,6 +1831,11 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                           child: _FamilyCard(
                                             member: _family[i],
+                                            onTap: () => Get.to(
+                                              () => FamilyMemberDetailPage(
+                                                member: _family[i],
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -1837,7 +1849,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // —— Sección Dispositivos registrados (DB) + estado LAN (mDNS) ——
+                  // â€”â€” SecciÃ³n Dispositivos registrados (DB) + estado LAN (mDNS) â€”â€”
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
@@ -1846,7 +1858,7 @@ class _HomePageState extends State<HomePage> {
                           Icon(Icons.devices_other, color: cs.primary),
                           const SizedBox(width: 8),
                           Text(
-                            'Dispositivos',
+                            'home.devices'.tr,
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: cs.primary,
@@ -1859,13 +1871,13 @@ class _HomePageState extends State<HomePage> {
                               Icons.add_circle_outline,
                               size: 16,
                             ),
-                            label: const Text('Agregar'),
+                            label: Text('home.devices.add'.tr),
                           ),
                           const SizedBox(width: 8),
                           TextButton.icon(
                             onPressed: _goToDevices,
                             icon: const Icon(Icons.open_in_new, size: 16),
-                            label: const Text('Ver todos'),
+                            label: Text('home.devices.all'.tr),
                           ),
                         ],
                       ),
@@ -1880,8 +1892,8 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: _EmptyInline(
                           icon: Icons.smart_toy_outlined,
-                          title: 'Sin dispositivos activos en Inicio',
-                          actionText: 'Elegir dispositivos',
+                          title: 'home.devices.empty'.tr,
+                          actionText: 'home.devices.all'.tr,
                           onAction: _goToDevices,
                         ),
                       ),
@@ -1901,15 +1913,13 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
       ),
-      // Barra inferior simple (sin botón extra de “agregar”, ya está en otra pantalla)
+      // Barra inferior simple (sin botÃ³n extra de â€œagregarâ€, ya estÃ¡ en otra pantalla)
       bottomNavigationBar: _BottomNav(
         onIntelligence: () {
           Get.to(() => const AiAssistantPage());
         },
         onFamily: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Pantalla de familia (pendiente).')),
-          );
+          Get.to(() => const FamilyListPage());
         },
         onHome: () {},
         onDevices: _goToDevices,
@@ -1930,63 +1940,79 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/* ======================= Widgets de Sección ======================= */
+/* ======================= Widgets de SecciÃ³n ======================= */
 
 class _FamilyCard extends StatelessWidget {
-  const _FamilyCard({required this.member});
+  const _FamilyCard({required this.member, this.onTap});
   final FamilyMember member;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: cs.secondaryContainer,
+    final photoPath = member.profileImagePath;
+    final file = photoPath != null && photoPath.isNotEmpty ? File(photoPath) : null;
+    final hasPhoto = file != null && file.existsSync();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.18),
-            blurRadius: 10,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: cs.primary,
-            child: Text(
-              _initials(member.name),
-              style: TextStyle(
-                color: cs.onPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+        onTap: onTap,
+        child: Container(
+          width: 140,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          decoration: BoxDecoration(
+            color: cs.secondaryContainer,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            member.name,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: cs.onSecondaryContainer,
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: cs.primary,
+                backgroundImage: hasPhoto ? FileImage(file!) : null,
+                child: hasPhoto
+                    ? null
+                    : Text(
+                        _initials(member.name),
+                        style: TextStyle(
+                          color: cs.onPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                member.name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSecondaryContainer,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                member.relation,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSecondaryContainer.withOpacity(0.8),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            member.relation,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: cs.onSecondaryContainer.withOpacity(0.8)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2251,23 +2277,23 @@ class _BottomNav extends StatelessWidget {
           children: [
             _NavBtn(
               icon: Icons.smart_toy_outlined,
-              label: 'Inteligencia',
+              label: 'home.aiTab'.tr,
               onTap: onIntelligence,
             ),
             _NavBtn(
               icon: Icons.people_alt_outlined,
-              label: 'Familia',
+              label: 'home.family'.tr,
               onTap: onFamily,
             ),
             _NavBtn(
               icon: Icons.home_filled,
-              label: 'Inicio',
+              label: 'home.title'.tr,
               onTap: onHome,
               active: true,
             ),
             _NavBtn(
               icon: Icons.devices_other,
-              label: 'Dispositivos',
+              label: 'home.devices'.tr,
               onTap: onDevices,
             ),
           ],
@@ -2316,3 +2342,11 @@ class _NavBtn extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+

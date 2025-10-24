@@ -97,8 +97,10 @@ class _DevicesPageState extends State<DevicesPage> {
 
   Future<void> _forget(_Row row) async {
     try {
-      final outcome =
-          await _repository.forgetAndReset(deviceId: row.id, ip: row.ip);
+      final outcome = await _repository.forgetAndReset(
+        deviceId: row.id,
+        ip: row.ip,
+      );
       if (!mounted) return;
       switch (outcome) {
         case ForgetOutcome.local:
@@ -133,13 +135,9 @@ class _DevicesPageState extends State<DevicesPage> {
     } on StateError catch (e) {
       debugPrint('StateError olvidando dispositivo ${row.id}: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.message,
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
       return;
     } catch (e) {
@@ -147,9 +145,7 @@ class _DevicesPageState extends State<DevicesPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'No se pudo completar el reinicio remoto: $e',
-            ),
+            content: Text('No se pudo completar el reinicio remoto: $e'),
           ),
         );
       }
@@ -157,11 +153,9 @@ class _DevicesPageState extends State<DevicesPage> {
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dispositivo olvidado.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Dispositivo olvidado.')));
     }
 
     _runScan();
@@ -174,7 +168,9 @@ class _DevicesPageState extends State<DevicesPage> {
       setState(() {
         _rows = [
           for (final current in _rows)
-            current.id == row.id ? current.copyWith(homeActive: active) : current
+            current.id == row.id
+                ? current.copyWith(homeActive: active)
+                : current,
         ];
       });
       ScaffoldMessenger.of(context).showSnackBar(
@@ -204,9 +200,7 @@ class _DevicesPageState extends State<DevicesPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dispositivos'),
-        actions: const [
-          ThemeToggleButton(),
-        ],
+        actions: const [ThemeToggleButton()],
       ),
       body: Column(
         children: [

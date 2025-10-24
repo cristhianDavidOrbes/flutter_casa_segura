@@ -240,8 +240,10 @@ class ProvisioningService {
       }
 
       if (normalizedHomeSsid != null) {
-        connectedToInternetWifi =
-            await _connectToInternetWifi(normalizedHomeSsid, pass);
+        connectedToInternetWifi = await _connectToInternetWifi(
+          normalizedHomeSsid,
+          pass,
+        );
       }
 
       if (!connectedToInternetWifi) {
@@ -533,7 +535,8 @@ class ProvisioningService {
     final already = await _currentSsid();
     if (already == normalizedSsid) return true;
 
-    final candidates = securityCandidates ??
+    final candidates =
+        securityCandidates ??
         (password != null && password.isNotEmpty
             ? const [
                 NetworkSecurity.WPA,
@@ -588,7 +591,9 @@ class ProvisioningService {
     }
 
     await Future.delayed(
-      enable ? const Duration(milliseconds: 900) : const Duration(milliseconds: 600),
+      enable
+          ? const Duration(milliseconds: 900)
+          : const Duration(milliseconds: 600),
     );
 
     try {

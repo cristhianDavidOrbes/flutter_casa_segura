@@ -1,13 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_seguridad_en_casa/features/ai/data/ai_assistant_service.dart';
+import 'package:flutter_seguridad_en_casa/features/ai/data/security_chat_store.dart';
 import 'package:flutter_seguridad_en_casa/features/ai/domain/ai_message.dart';
+import 'package:flutter_seguridad_en_casa/features/ai/domain/security_chat_message.dart';
+import 'package:flutter_seguridad_en_casa/features/security/data/security_event_store.dart';
+import 'package:flutter_seguridad_en_casa/features/security/presentation/pages/notifications_page.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
+import 'package:flutter_seguridad_en_casa/features/ai/presentation/pages/security_chat_history_page.dart';
 
 class AiAssistantPage extends StatefulWidget {
   const AiAssistantPage({super.key});
@@ -21,6 +28,7 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   final _service = AiAssistantService();
   final DeviceRepository _deviceRepository = DeviceRepository.instance;
   final RemoteDeviceService _remoteService = RemoteDeviceService();
+  final DateFormat _timeFormat = DateFormat('HH:mm');
   final _messages = <AiMessage>[];
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
@@ -71,9 +79,37 @@ class _AiAssistantPageState extends State<AiAssistantPage>
     setState(() {
       _messages.add(userMessage);
     });
+    await SecurityChatStore.add(
+      SecurityChatMessage(
+        role: 'user',
+        text: text,
+        createdAt: userMessage.timestamp,
+      ),
+    );
     _scrollToBottom();
 
     _evaluateCommand(text);
+
+    if (!_isSecurityRelated(text)) {
+      const warning =
+          'Solo puedo ayudarte con temas de seguridad del hogar. Prueba preguntarme sobre cámaras, sensores, puertas o notificaciones.';
+      setState(() {
+        _messages.add(AiMessage(role: AiMessageRole.assistant, text: warning));
+      });
+      await SecurityChatStore.add(
+        SecurityChatMessage(
+          role: 'assistant',
+          text: warning,
+          createdAt: DateTime.now(),
+        ),
+      );
+      _scrollToBottom();
+      return;
+    }
+
+    if (await _handleLocalCommand(text)) {
+      return;
+    }
 
     setState(() => _isTyping = true);
     final reply = await _service.generateReply(_messages);
@@ -83,29 +119,47 @@ class _AiAssistantPageState extends State<AiAssistantPage>
       _messages.add(AiMessage(role: AiMessageRole.assistant, text: reply));
       _isTyping = false;
     });
+    await SecurityChatStore.add(
+      SecurityChatMessage(
+        role: 'assistant',
+        text: reply,
+        createdAt: DateTime.now(),
+      ),
+    );
     _scrollToBottom();
   }
 
   void _evaluateCommand(String text) {
     final lower = text.toLowerCase();
     final wantsVideo =
-        lower.contains('ver el video') || lower.contains('muestra video');
+        lower.contains('ver el video') ||
+        lower.contains('muestra video') ||
+        lower.contains('show me the video') ||
+        lower.contains('show the video');
     final removeVideo =
         lower.contains('quita el video') ||
         lower.contains('oculta video') ||
-        lower.contains('cerrar video');
+        lower.contains('cerrar video') ||
+        lower.contains('hide the video') ||
+        lower.contains('close the video');
     final wantsDetection =
-        lower.contains('detección') || lower.contains('deteccion');
+        lower.contains('detección') ||
+        lower.contains('deteccion') ||
+        lower.contains('detection');
     final removeDetection =
         lower.contains('oculta detección') ||
         lower.contains('oculta deteccion') ||
         lower.contains('quitar detección') ||
-        lower.contains('quitar deteccion');
+        lower.contains('quitar deteccion') ||
+        lower.contains('hide detections');
     final openDoor =
-        lower.contains('abrir la puerta') || lower.contains('abre la puerta');
+        lower.contains('abrir la puerta') ||
+        lower.contains('abre la puerta') ||
+        lower.contains('open the door');
     final closeDoor =
         lower.contains('cerrar la puerta') ||
-        lower.contains('cierra la puerta');
+        lower.contains('cierra la puerta') ||
+        lower.contains('close the door');
 
     if (wantsVideo) {
       _ensureVideo();
@@ -224,13 +278,133 @@ class _AiAssistantPageState extends State<AiAssistantPage>
     _handleSubmit(text);
   }
 
+  bool _isSecurityRelated(String text) {
+    final lower = text.toLowerCase();
+    const keywords = [
+      'seguridad',
+      'alarma',
+      'cámara',
+      'camara',
+      'sensor',
+      'detección',
+      'deteccion',
+      'puerta',
+      'notificación',
+      'notificacion',
+      'intruso',
+      'video',
+      'resumen',
+      'alerta',
+    ];
+    return keywords.any(lower.contains);
+  }
+
+  Future<bool> _handleLocalCommand(String text) async {
+    final lower = text.toLowerCase();
+    if (lower.contains('resumen') || lower.contains('summary')) {
+      final summary = _generateDailySummary();
+      await _appendAssistant(summary);
+      return true;
+    }
+    if (lower.contains('notificacion') || lower.contains('notification')) {
+      final list = _listRecentNotifications();
+      await _appendAssistant(list);
+      if (lower.contains('abrir') || lower.contains('open')) {
+        await _appendAssistant('ai.notifications.open'.tr);
+        Get.to(() => const NotificationsPage());
+      }
+      return true;
+    }
+    if (lower.contains('conversacion') || lower.contains('conversation')) {
+      Get.to(() => const SecurityChatHistoryPage());
+      await _appendAssistant('Mostrando historial de conversaciones locales.');
+      return true;
+    }
+    return false;
+  }
+
+  String _generateDailySummary() {
+    final now = DateTime.now();
+    final events = SecurityEventStore.all()
+        .where(
+          (event) =>
+              event.createdAt.year == now.year &&
+              event.createdAt.month == now.month &&
+              event.createdAt.day == now.day,
+        )
+        .toList();
+
+    if (events.isEmpty) return 'ai.summary.none'.tr;
+
+    final buffer = StringBuffer()
+      ..writeln('ai.summary.header'.tr)
+      ..writeln(
+        'ai.summary.total'.trParams({'count': events.length.toString()}),
+      );
+
+    final latest = events.first;
+    buffer.writeln(
+      'ai.summary.last'.trParams({
+        'label': latest.label,
+        'device': latest.deviceName,
+        'time': _timeFormat.format(latest.createdAt),
+      }),
+    );
+
+    for (final event in events.skip(1).take(3)) {
+      buffer.writeln(
+        '- ${event.label} · ${event.deviceName} · ${_timeFormat.format(event.createdAt)}',
+      );
+    }
+    if (events.length > 4) {
+      buffer.writeln('… ${events.length - 4} eventos adicionales.');
+    }
+    return buffer.toString();
+  }
+
+  String _listRecentNotifications() {
+    final events = SecurityEventStore.all().take(5).toList();
+    if (events.isEmpty) return 'ai.summary.none'.tr;
+    final buffer = StringBuffer('Últimas alertas:\n');
+    for (final event in events) {
+      buffer.writeln(
+        '• ${event.label} · ${event.deviceName} · ${_timeFormat.format(event.createdAt)}',
+      );
+    }
+    buffer.writeln(
+      'Puedes abrir la bandeja de notificaciones para ver las imágenes adjuntas.',
+    );
+    return buffer.toString();
+  }
+
+  Future<void> _appendAssistant(String text) async {
+    setState(() {
+      _messages.add(AiMessage(role: AiMessageRole.assistant, text: text));
+    });
+    await SecurityChatStore.add(
+      SecurityChatMessage(
+        role: 'assistant',
+        text: text,
+        createdAt: DateTime.now(),
+      ),
+    );
+    _scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Asistente IA'),
-        actions: const [ThemeToggleButton()],
+        title: Text('ai.title'.tr),
+        actions: [
+          IconButton(
+            tooltip: 'Ver historial',
+            icon: const Icon(Icons.history),
+            onPressed: () => Get.to(() => const SecurityChatHistoryPage()),
+          ),
+          const ThemeToggleButton(),
+        ],
       ),
       body: Stack(
         children: [
@@ -619,11 +793,11 @@ class _QuickActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final actions = <String>[
-      'Quiero ver el video',
-      'Muestra las detecciones',
-      'Abrir la puerta',
-      'Cierra la puerta',
-      'Dame un resumen de seguridad',
+      'ai.quick.video'.tr,
+      'ai.quick.detections'.tr,
+      'ai.quick.openDoor'.tr,
+      'ai.quick.closeDoor'.tr,
+      'ai.quick.summary'.tr,
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -666,7 +840,7 @@ class _InputBar extends StatelessWidget {
             decoration: InputDecoration(
               filled: true,
               fillColor: cs.surfaceVariant.withOpacity(0.6),
-              hintText: 'Escribe tu mensaje',
+              hintText: 'ai.input.hint'.tr,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
                 borderSide: BorderSide.none,

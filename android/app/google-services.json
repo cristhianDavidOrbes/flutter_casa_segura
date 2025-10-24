@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "83865748193",
+    "project_id": "casasegura-3ed50",
+    "storage_bucket": "casasegura-3ed50.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83865748193:android:740ea8c673b50cfc67ada0",
+        "android_client_info": {
+          "package_name": "com.example.flutter_seguridad_en_casa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-VMidSp5x_wNIUNjzsCwqlcl5bJ0y7qc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

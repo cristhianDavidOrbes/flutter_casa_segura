@@ -7,11 +7,7 @@ import '../services/device_control_service.dart';
 import '../services/remote_device_service.dart';
 import '../data/local/app_db.dart';
 
-enum ForgetOutcome {
-  local,
-  remoteConfirmed,
-  remoteQueued,
-}
+enum ForgetOutcome { local, remoteConfirmed, remoteQueued }
 
 class DeviceRecord {
   const DeviceRecord({

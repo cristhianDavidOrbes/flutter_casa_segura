@@ -315,6 +315,144 @@ begin
   end if;
 end $$;
 
+-- ===== Security Events =====
+create table if not exists public.security_events (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  device_id uuid not null references public.devices(id) on delete cascade,
+  device_name text,
+  label text,
+  description text,
+  image_url text,
+  captured_at timestamptz not null default now(),
+  family_member_id integer,
+  family_member_name text,
+  family_schedule_matched boolean,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists security_events_user_idx
+  on public.security_events (user_id, captured_at desc);
+create index if not exists security_events_device_idx
+  on public.security_events (device_id, captured_at desc);
+
+alter table public.security_events enable row level security;
+
+drop trigger if exists security_events_touch on public.security_events;
+create trigger security_events_touch
+before update on public.security_events
+for each row execute procedure public.touch_updated_at();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'security_events'
+      and policyname = 'security_events_select_own'
+  ) then
+    execute 'create policy "security_events_select_own" on public.security_events for select using (user_id = auth.uid())';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'security_events'
+      and policyname = 'security_events_insert_own'
+  ) then
+    execute
+      'create policy "security_events_insert_own" on public.security_events
+       for insert with check (
+         user_id = auth.uid()
+         and exists (select 1 from public.devices d where d.id = device_id and d.user_id = auth.uid())
+       )';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'security_events'
+      and policyname = 'security_events_update_own'
+  ) then
+    execute
+      'create policy "security_events_update_own" on public.security_events
+       for update using (user_id = auth.uid())
+       with check (
+         user_id = auth.uid()
+         and exists (select 1 from public.devices d where d.id = device_id and d.user_id = auth.uid())
+       )';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'security_events'
+      and policyname = 'security_events_delete_own'
+  ) then
+    execute
+      'create policy "security_events_delete_own" on public.security_events
+       for delete using (user_id = auth.uid())';
+  end if;
+end $$;
+
+-- ===== Push notification tokens =====
+create table if not exists public.user_push_tokens (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  token text not null,
+  platform text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  primary key (user_id, token)
+);
+
+alter table public.user_push_tokens enable row level security;
+
+drop trigger if exists user_push_tokens_touch on public.user_push_tokens;
+create trigger user_push_tokens_touch
+before update on public.user_push_tokens
+for each row execute procedure public.touch_updated_at();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'user_push_tokens'
+      and policyname = 'user_push_tokens_select_own'
+  ) then
+    execute
+      'create policy "user_push_tokens_select_own" on public.user_push_tokens
+       for select using (user_id = auth.uid())';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'user_push_tokens'
+      and policyname = 'user_push_tokens_insert_own'
+  ) then
+    execute
+      'create policy "user_push_tokens_insert_own" on public.user_push_tokens
+       for insert with check (user_id = auth.uid())';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'user_push_tokens'
+      and policyname = 'user_push_tokens_update_own'
+  ) then
+    execute
+      'create policy "user_push_tokens_update_own" on public.user_push_tokens
+       for update using (user_id = auth.uid())
+       with check (user_id = auth.uid())';
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where tablename = 'user_push_tokens'
+      and policyname = 'user_push_tokens_delete_own'
+  ) then
+    execute
+      'create policy "user_push_tokens_delete_own" on public.user_push_tokens
+       for delete using (user_id = auth.uid())';
+  end if;
+end $$;
+
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('camera_frames', 'camera_frames', false, null)
 on conflict (id) do nothing;

@@ -1,15 +1,17 @@
-// lib/screens/forgot_password_screen.dart
+// lib/features/auth/presentation/pages/forgot_password_screen.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import 'package:flutter_seguridad_en_casa/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:flutter_seguridad_en_casa/core/errors/app_failure.dart';
 import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  /// Opcional: para prellenar el email si vienes del login.
-  final String? initialEmail;
   const ForgotPasswordScreen({super.key, this.initialEmail});
+
+  /// Optional prefill coming from login screen.
+  final String? initialEmail;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -18,7 +20,6 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
-
   bool _isLoading = false;
 
   final AuthController _auth = Get.find<AuthController>();
@@ -42,23 +43,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     try {
       await _auth.sendPasswordResetEmail(email: _emailCtrl.text.trim());
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enlace de recuperacion enviado. Revisa tu correo y abre el enlace.',
-          ),
-        ),
+        SnackBar(content: Text('auth.reset.sent'.tr)),
       );
 
       await Future.delayed(const Duration(milliseconds: 900));
       if (mounted) Get.back();
     } on AppFailure catch (e) {
-      final message = e.message.isNotEmpty
-          ? e.message
-          : 'No se pudo enviar la recuperacion.';
+      final message =
+          e.message.isNotEmpty ? e.message : 'auth.reset.failed'.tr;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),
@@ -67,7 +62,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al enviar recuperacion: ' + e.toString())),
+          SnackBar(
+            content: Text(
+              'auth.reset.error'.trParams({'error': e.toString()}),
+            ),
+          ),
         );
       }
     } finally {
@@ -76,21 +75,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   String? _validateEmail(String? value) {
-    if (value == null || value.trim().isEmpty) return 'Escribe tu correo';
+    if (value == null || value.trim().isEmpty) {
+      return 'auth.reset.emailRequired'.tr;
+    }
     final email = value.trim();
     if (!email.contains('@') || !email.contains('.')) {
-      return 'Correo no valido';
+      return 'auth.reset.emailInvalid'.tr;
     }
     return null;
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recuperar contrasena'),
+        title: Text('auth.reset.title'.tr),
         actions: const [ThemeToggleButton()],
       ),
       body: Center(
@@ -105,17 +106,17 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Ingresa tu correo y te enviaremos un enlace para restablecer tu contrasena.',
-                    style: TextStyle(color: cs.onBackground),
+                    'auth.reset.description'.tr,
+                    style: TextStyle(color: colorScheme.onBackground),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                     validator: _validateEmail,
-                    decoration: const InputDecoration(
-                      labelText: 'Correo electronico',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'auth.login.emailLabel'.tr,
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -123,13 +124,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
                           onPressed: _sendRecovery,
-                          child: const Text('Enviar enlace de recuperacion'),
+                          child: Text('auth.reset.submit'.tr),
                         ),
                   const SizedBox(height: 12),
                   Text(
-                    "Usaremos el esquema ${Environment.supabaseResetRedirect} para abrir la app y permitirte cambiar tu contrasena.",
+                    'auth.reset.schemeInfo'.trParams({
+                      'scheme': Environment.supabaseResetRedirect,
+                    }),
                     style: TextStyle(
-                      color: cs.onBackground.withOpacity(.75),
+                      color: colorScheme.onBackground.withOpacity(.75),
                       fontSize: 13,
                     ),
                   ),
@@ -142,7 +145,3 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 }
-
-
-
-

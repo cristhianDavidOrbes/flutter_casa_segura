@@ -8,6 +8,7 @@ import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/sign_out
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/sign_up_with_email.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/update_password.dart';
 import 'package:flutter_seguridad_en_casa/features/auth/domain/usecases/resend_email_confirmation.dart';
+import 'package:flutter_seguridad_en_casa/features/security/application/push_notification_service.dart';
 import 'package:get/get.dart';
 
 class AuthController extends GetxController {
@@ -49,6 +50,7 @@ class AuthController extends GetxController {
   }) async {
     final user = await _signInWithEmail(email: email, password: password);
     currentUser.value = user;
+    await PushNotificationService.to.syncTokenWithUser();
     return user;
   }
 
@@ -83,6 +85,7 @@ class AuthController extends GetxController {
   }
 
   Future<void> signOut() async {
+    await PushNotificationService.to.removeToken();
     await _signOut();
     currentUser.value = null;
   }

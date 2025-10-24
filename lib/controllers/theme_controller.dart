@@ -11,4 +11,3 @@ class ThemeController extends GetxController {
     Get.changeThemeMode(themeMode);
   }
 }
-

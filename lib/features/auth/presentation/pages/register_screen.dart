@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:rive/rive.dart';
@@ -104,7 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) {
       _setAnim(_kNoRegistrado);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Revisa los campos del formulario.')),
+        SnackBar(content: Text('auth.register.formInvalid'.tr)),
       );
       return;
     }
@@ -157,7 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       _setAnim(_kNoRegistrado);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error inesperado: ${e.toString()}')),
+        SnackBar(content: Text('auth.error.unexpected'.trParams({'error': e.toString()}))),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -177,8 +177,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Te enviamos nuevamente el correo de verificacion.'),
+        SnackBar(
+          content: Text('auth.register.resendSuccess'.tr),
         ),
       );
     } on AppFailure catch (e) {
@@ -192,7 +192,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al reenviar el correo: ${e.toString()}')),
+        SnackBar(content: Text('auth.register.resendError'.trParams({'error': e.toString()}))),
       );
     } finally {
       if (mounted) {
@@ -263,7 +263,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          'Crear Cuenta',
+                          'auth.register.title'.tr,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: colorScheme.onSurface,
@@ -272,40 +272,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        _label('Nombre:'),
+                        _label('auth.register.nameLabel'.tr),
                         const SizedBox(height: 8),
                         _textField(
                           controller: _nameCtrl,
-                          hint: 'Nombre completo',
+                          hint: 'auth.register.nameHint'.tr,
                           onTapExtra: () => _setAnim(_kIdle),
                         ),
                         const SizedBox(height: 16),
-                        _label('Correo electronico:'),
+                        _label('auth.register.emailLabel'.tr),
                         const SizedBox(height: 8),
                         _textField(
                           controller: _emailCtrl,
                           keyboard: TextInputType.emailAddress,
-                          hint: 'correo@ejemplo.com',
+                          hint: 'auth.register.emailHint'.tr,
                           focusNode: _emailFocus,
                           validator: (value) {
                             final email = value?.trim() ?? '';
                             if (email.isEmpty)
-                              return 'Escribe un correo valido';
+                              return 'auth.register.emailRequired'.tr;
                             if (!email.contains('@') || !email.contains('.')) {
-                              return 'Correo no valido';
+                              return 'auth.register.emailInvalid'.tr;
                             }
                             return null;
                           },
                           onChangedExtra: _onEmailChanged,
                         ),
                         const SizedBox(height: 16),
-                        _label('Contrasena:'),
+                        _label('auth.register.passwordLabel'.tr),
                         const SizedBox(height: 8),
                         _textField(
                           controller: _pwdCtrl,
                           focusNode: _pwdFocus,
                           obscure: _obscurePwd,
-                          hint: 'Minimo 8 caracteres',
+                          hint: 'auth.register.passwordHint'.tr,
                           suffix: IconButton(
                             onPressed: () => setState(() {
                               _obscurePwd = !_obscurePwd;
@@ -320,8 +320,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           validator: (value) {
                             final pwd = value?.trim() ?? '';
-                            if (pwd.isEmpty) return 'Escribe una contrasena';
-                            if (pwd.length < 8) return 'Minimo 8 caracteres';
+                            if (pwd.isEmpty) return 'auth.register.passwordRequired'.tr;
+                            if (pwd.length < 8) return 'auth.register.passwordHint'.tr;
                             return null;
                           },
                           onTapExtra: () => _setAnim(_kContrasena),
@@ -342,7 +342,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 onPressed: _register,
                                 child: Text(
-                                  'Registrarse',
+                                  'auth.register.submit'.tr,
                                   style: TextStyle(
                                     color: colorScheme.onPrimary,
                                     fontSize: 17,
@@ -365,7 +365,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Text(
-                                  'Enviamos un correo de verificacion a $_pendingVerificationEmail.',
+                                  'auth.register.pendingVerification'.trParams({
+                                    'email': _pendingVerificationEmail!,
+                                  }),
                                   style: TextStyle(
                                     color: colorScheme.onSurface,
                                     fontSize: 14,
@@ -393,8 +395,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                   label: Text(
                                     _isResendingEmail
-                                        ? 'Reenviando...'
-                                        : 'Reenviar correo de verificacion',
+                                        ? 'auth.register.resending'.tr
+                                        : 'auth.register.resend'.tr,
                                   ),
                                 ),
                               ],
@@ -407,7 +409,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             widget.circleNotifier.moveToBottom();
                             Navigator.pop(context);
                           },
-                          child: const Text('Ya tienes cuenta? Inicia sesion'),
+                          child: Text('auth.register.hasAccount'.tr),
                         ),
                       ],
                     ),
@@ -470,3 +472,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
+
+
+
+

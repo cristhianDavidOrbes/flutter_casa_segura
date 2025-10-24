@@ -1,4 +1,4 @@
-// lib/features/auth/presentation/pages/login_screen.dart
+﻿// lib/features/auth/presentation/pages/login_screen.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -189,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Completa correo y contrasena.')),
+        SnackBar(content: Text('auth.login.fillFields'.tr)),
       );
       return;
     }
@@ -214,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error inesperado: ${e.toString()}')),
+          SnackBar(content: Text('auth.error.unexpected'.trParams({'error': e.toString()}))),
         );
       }
     } finally {
@@ -387,7 +387,7 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.center,
             child: Text(
-              'Inicio de sesion',
+              'auth.login.title'.tr,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 30,
@@ -398,7 +398,7 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Correo electronico:',
+              'auth.login.emailLabel'.tr,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 16,
@@ -423,7 +423,7 @@ class _LoginScreenState extends State<LoginScreen>
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Contrasena:',
+              'auth.login.passwordLabel'.tr,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 16,
@@ -463,7 +463,7 @@ class _LoginScreenState extends State<LoginScreen>
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _goToForgotPassword,
-              child: const Text('Olvidaste tu contrasena?'),
+              child: Text('auth.login.forgot'.tr),
             ),
           ),
           const SizedBox(height: 8),
@@ -482,7 +482,7 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   onPressed: _login,
                   child: Text(
-                    'Iniciar Sesion',
+                    'auth.login.submit'.tr,
                     style: TextStyle(
                       fontSize: 18,
                       color: Theme.of(context).colorScheme.onPrimary,
@@ -494,3 +494,6 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 }
+
+
+

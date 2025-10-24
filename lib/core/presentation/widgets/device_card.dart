@@ -198,8 +198,9 @@ class _StatusAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final borderColor = online ? color : cs.outline;
-    final fillColor =
-        online ? color.withOpacity(0.12) : cs.surfaceVariant.withOpacity(0.6);
+    final fillColor = online
+        ? color.withOpacity(0.12)
+        : cs.surfaceVariant.withOpacity(0.6);
 
     return Container(
       width: 48,
@@ -210,11 +211,7 @@ class _StatusAvatar extends StatelessWidget {
         border: Border.all(color: borderColor, width: 3),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        icon,
-        color: borderColor,
-        size: 22,
-      ),
+      child: Icon(icon, color: borderColor, size: 22),
     );
   }
 }
@@ -234,10 +231,7 @@ class _CameraPreview extends StatelessWidget {
         color: colorScheme.surfaceVariant.withOpacity(0.7),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        Icons.videocam_outlined,
-        color: colorScheme.onSurfaceVariant,
-      ),
+      child: Icon(Icons.videocam_outlined, color: colorScheme.onSurfaceVariant),
     );
   }
 }
@@ -307,7 +301,10 @@ class _DataPreview extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
-                      style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ],
@@ -348,7 +345,11 @@ List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
     return '${value.toStringAsFixed(2)} cm';
   }
 
-  String? formatBool(dynamic value, {String trueLabel = 'Si', String falseLabel = 'No'}) {
+  String? formatBool(
+    dynamic value, {
+    String trueLabel = 'Si',
+    String falseLabel = 'No',
+  }) {
     if (value is bool) return value ? trueLabel : falseLabel;
     if (value is num) return value != 0 ? trueLabel : falseLabel;
     return null;
@@ -356,7 +357,11 @@ List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
 
   final servo = remaining.remove('servo');
   if (servo is Map) {
-    final onLabel = formatBool(servo['on'], trueLabel: 'Activado', falseLabel: 'Apagado');
+    final onLabel = formatBool(
+      servo['on'],
+      trueLabel: 'Activado',
+      falseLabel: 'Apagado',
+    );
     if (onLabel != null) addPair('Servo', onLabel);
     final pos = servo['pos'];
     if (pos is num) {
@@ -365,24 +370,36 @@ List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
     }
   }
 
-  final distance = remaining.remove('distance_cm') ?? remaining.remove('ultra_cm');
+  final distance =
+      remaining.remove('distance_cm') ?? remaining.remove('ultra_cm');
   if (distance is num) {
     addPair('Distancia', formatDistance(distance));
   }
 
-  final soundEvt = remaining.remove('sound_event') ?? remaining.remove('sound_evt');
-  final soundLabel = formatBool(soundEvt, trueLabel: 'Detectado', falseLabel: 'Normal');
+  final soundEvt =
+      remaining.remove('sound_event') ?? remaining.remove('sound_evt');
+  final soundLabel = formatBool(
+    soundEvt,
+    trueLabel: 'Detectado',
+    falseLabel: 'Normal',
+  );
   if (soundLabel != null) addPair('Sonido', soundLabel);
 
-  final soundRaw = remaining.remove('sound_raw') ?? remaining.remove('sound_do');
+  final soundRaw =
+      remaining.remove('sound_raw') ?? remaining.remove('sound_do');
   if (soundRaw is num) {
     addPair('Microfono DO', soundRaw.toInt().toString());
   } else if (soundRaw != null) {
     addPair('Microfono DO', soundRaw.toString());
   }
 
-  final ultraOk = remaining.remove('ultrasonic_ok') ?? remaining.remove('ultra_ok');
-  final ultraLabel = formatBool(ultraOk, trueLabel: 'OK', falseLabel: 'Sin eco');
+  final ultraOk =
+      remaining.remove('ultrasonic_ok') ?? remaining.remove('ultra_ok');
+  final ultraLabel = formatBool(
+    ultraOk,
+    trueLabel: 'OK',
+    falseLabel: 'Sin eco',
+  );
   if (ultraLabel != null) addPair('Ultrasonido', ultraLabel);
 
   final updated = remaining.remove('updated_at');
@@ -469,8 +486,8 @@ class _ServoRow extends StatelessWidget {
       final on = (servo['on'] is bool)
           ? (servo['on'] as bool)
           : (servo['pos'] is num)
-              ? (servo['pos'] as num) >= 90
-              : false;
+          ? (servo['pos'] as num) >= 90
+          : false;
       final pos = (servo['pos'] is num)
           ? max(0, min(180, (servo['pos'] as num).toInt()))
           : null;
