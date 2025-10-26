@@ -37,7 +37,7 @@ String deviceName = "casa-esp-cam";
 String hostLabel  = "casa-esp-cam";
 
 static const char* SNAPSHOT_BUCKET = "camera_frames";
-static const uint32_t SNAPSHOT_INTERVAL_MS = 1000;
+static const uint32_t SNAPSHOT_INTERVAL_MS = 10000;
 
 struct WifiCreds { String ssid, pass, alias; };
 struct SupabaseCreds { String url, anonKey, deviceId, deviceKey; };

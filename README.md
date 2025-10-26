@@ -1,4 +1,4 @@
-# Casa Segura – Ecosistema de seguridad doméstica
+# Casa Segura - Ecosistema de seguridad doméstica
 
 Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash Lite), almacenamiento local (Hive/SQLite) y sincronización en Supabase para ofrecer monitoreo inteligente, chat asistido y alertas en tiempo real.
 
@@ -56,7 +56,7 @@ Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash
 
 - Las cadenas viven en `lib/core/localization/app_translations.dart` dentro de los mapas `es` y `en` usados por GetX (`GetMaterialApp.translations`).
 - **Edita siempre el archivo en UTF-8** (sin BOM). En VS Code agrega `"files.encoding": "utf8"` y `"files.autoGuessEncoding": false`. Evita copiar texto desde Word u otros editores que usen Windows-1252.
-- Si un carácter se ve como `Ã` o `�`, vuelve a guardar el archivo en UTF-8 y reescribe la cadena correcta (por ejemplo `Configuración`).
+- Si un carácter se ve como `Ã³` o `�`, vuelve a guardar el archivo en UTF-8 y reescribe la cadena correcta (por ejemplo `Configuración`).
 - Para añadir un idioma duplica el mapa, traduce las cadenas y registra el locale (`supportedLocales` y `fallbackLocale`) en `main.dart`.
 - Después de modificar textos ejecuta `flutter run` y cambia el idioma desde **Configuración → Idioma** para validar que los textos se muestren correctamente.
 
@@ -120,7 +120,7 @@ Consulta los sketches en `dispositivos/` para ejemplos ESP32.
 ---
 
 ## Recursos adicionales
-- [Google ML Kit – Face & Object Detection](https://developers.google.com/ml-kit/vision)
+- [Google ML Kit - Face & Object Detection](https://developers.google.com/ml-kit/vision)
 - [Supabase Docs](https://supabase.com/docs)
 - [Firebase Cloud Messaging](https://firebase.google.com/docs/cloud-messaging)
 - [Gemini API](https://ai.google.dev/)

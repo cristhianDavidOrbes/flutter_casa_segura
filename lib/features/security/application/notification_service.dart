@@ -1,9 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 
 import 'package:flutter_seguridad_en_casa/features/security/domain/security_event.dart';
 import 'package:flutter_seguridad_en_casa/features/security/presentation/pages/notifications_page.dart';
+
+enum DetectionSeverity { green, yellow, red }
 
 class NotificationService {
   NotificationService._();
@@ -37,6 +40,13 @@ class NotificationService {
       importance: Importance.high,
     );
 
+    const stageChannel = AndroidNotificationChannel(
+      'security_stage_alerts',
+      'Pre-alertas de seguridad',
+      description: 'Avisos tempranos ante detecciones persistentes',
+      importance: Importance.high,
+    );
+
     const pushChannel = AndroidNotificationChannel(
       'push_alerts',
       'Alertas push',
@@ -44,13 +54,59 @@ class NotificationService {
       importance: Importance.high,
     );
 
-    final androidImplementation =
-        _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidImplementation?.createNotificationChannel(securityChannel);
+    await androidImplementation?.createNotificationChannel(stageChannel);
     await androidImplementation?.createNotificationChannel(pushChannel);
 
     _initialized = true;
+  }
+
+  Future<void> showDetectionStage({
+    required String deviceName,
+    required DetectionSeverity severity,
+    required String message,
+  }) async {
+    if (!_initialized) return;
+
+    const emojiMap = {
+      DetectionSeverity.green: '🟢',
+      DetectionSeverity.yellow: '🟡',
+      DetectionSeverity.red: '🔴',
+    };
+    const colorMap = {
+      DetectionSeverity.green: Colors.green,
+      DetectionSeverity.yellow: Colors.amber,
+      DetectionSeverity.red: Colors.red,
+    };
+
+    final emoji = emojiMap[severity] ?? '🟢';
+    final color = colorMap[severity] ?? Colors.green;
+
+    final androidDetails = AndroidNotificationDetails(
+      'security_stage_alerts',
+      'Pre-alertas de seguridad',
+      channelDescription: 'Avisos tempranos ante detecciones persistentes',
+      importance: Importance.high,
+      priority: Priority.high,
+      color: color,
+      styleInformation: BigTextStyleInformation(
+        message,
+        contentTitle: '$emoji $deviceName',
+      ),
+    );
+
+    final details = NotificationDetails(android: androidDetails);
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      '$emoji $deviceName',
+      message,
+      details,
+      payload: 'notifications',
+    );
   }
 
   Future<void> showSecurityAlert(SecurityEvent event) async {
