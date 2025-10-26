@@ -20,7 +20,7 @@ You are the Casa Segura safety assistant. You only discuss smart-home security t
   Future<String> generateReply(List<AiMessage> history) async {
     final apiKey = Environment.geminiApiKey;
     if (apiKey == null || apiKey.isEmpty) {
-      return 'Parece que aún no configuraste tu clave de Gemini. Agrega GEMINI_API_KEY al archivo .env para habilitar las respuestas inteligentes.';
+      return 'Parece que aÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºn no configuraste tu clave de Gemini. Agrega GEMINI_API_KEY al archivo .env para habilitar las respuestas inteligentes.';
     }
 
     final trimmedHistory = history.length > 12
@@ -68,14 +68,14 @@ You are the Casa Segura safety assistant. You only discuss smart-home security t
             }
           }
         }
-        return 'No recibí una respuesta útil del modelo en este momento. ¿Intentamos otra pregunta?';
+        return 'No recibÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ­ una respuesta ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºtil del modelo en este momento. ÃÂÃÂÃÂÃÂ?Intentamos otra pregunta?';
       }
 
       debugPrint('Gemini error (${response.statusCode}): ${response.body}');
-      return 'Hubo un problema al contactar al modelo (código ${response.statusCode}). Intenta de nuevo más tarde.';
+      return 'Hubo un problema al contactar al modelo (cÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³digo ${response.statusCode}). Intenta de nuevo mÃÂÃÂÃÂÃÂ!s tarde.';
     } catch (e, st) {
       debugPrint('Gemini exception: $e\n$st');
-      return 'No pude comunicarme con el modelo en este momento. Revisa tu conexión e inténtalo otra vez.';
+      return 'No pude comunicarme con el modelo en este momento. Revisa tu conexiÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n e intÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ©ntalo otra vez.';
     }
   }
 }

@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
 
+import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/mjpeg_stream_view.dart';
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_seguridad_en_casa/features/ai/data/ai_assistant_service.dart';
@@ -37,9 +38,10 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   bool _showVideoPanel = false;
   bool _showDetectionPanel = false;
   bool _doorOpen = false;
-  String? _videoUrl;
 
-  VideoPlayerController? _videoController;
+  _CameraFeed? _cameraFeed;
+  bool _cameraLoading = false;
+  String? _cameraError;
   late final AnimationController _videoAnimCtrl;
   late final AnimationController _detectionAnimCtrl;
 
@@ -60,7 +62,6 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   void dispose() {
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
-    _videoController?.dispose();
     _videoAnimCtrl.dispose();
     _detectionAnimCtrl.dispose();
     super.dispose();
@@ -92,7 +93,7 @@ class _AiAssistantPageState extends State<AiAssistantPage>
 
     if (!_isSecurityRelated(text)) {
       const warning =
-          'Solo puedo ayudarte con temas de seguridad del hogar. Prueba preguntarme sobre cámaras, sensores, puertas o notificaciones.';
+          'Solo puedo ayudarte con temas de seguridad del hogar. Prueba preguntarme sobre cÃÂÃÂÃÂÃÂ!maras, sensores, puertas o notificaciones.';
       setState(() {
         _messages.add(AiMessage(role: AiMessageRole.assistant, text: warning));
       });
@@ -143,13 +144,13 @@ class _AiAssistantPageState extends State<AiAssistantPage>
         lower.contains('hide the video') ||
         lower.contains('close the video');
     final wantsDetection =
-        lower.contains('detección') ||
+        lower.contains('detecciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n') ||
         lower.contains('deteccion') ||
         lower.contains('detection');
     final removeDetection =
-        lower.contains('oculta detección') ||
+        lower.contains('oculta detecciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n') ||
         lower.contains('oculta deteccion') ||
-        lower.contains('quitar detección') ||
+        lower.contains('quitar detecciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n') ||
         lower.contains('quitar deteccion') ||
         lower.contains('hide detections');
     final openDoor =
@@ -188,8 +189,8 @@ class _AiAssistantPageState extends State<AiAssistantPage>
           SnackBar(
             content: Text(
               targetState
-                  ? 'Puerta principal abierta (simulación).'
-                  : 'Puerta principal cerrada (simulación).',
+                  ? 'Puerta principal abierta (simulaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n).'
+                  : 'Puerta principal cerrada (simulaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n).',
             ),
           ),
         );
@@ -198,40 +199,42 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   }
 
   Future<void> _ensureVideo() async {
-    if (_videoController != null) {
-      _videoController!
-        ..setLooping(true)
-        ..play();
-      setState(() => _showVideoPanel = true);
+    if (_cameraFeed != null) {
+      setState(() {
+        _showVideoPanel = true;
+        _cameraLoading = false;
+        _cameraError = null;
+      });
       return;
     }
 
-    setState(() => _showVideoPanel = true);
+    setState(() {
+      _showVideoPanel = true;
+      _cameraLoading = true;
+      _cameraError = null;
+    });
 
-    final stream = await _resolveCameraStreamUrl();
-    VideoPlayerController controller;
-    if (stream != null) {
-      controller = VideoPlayerController.networkUrl(Uri.parse(stream));
-    } else {
-      controller = VideoPlayerController.asset('assets/carga.mp4');
+    final feed = await _resolveCameraFeed();
+    if (!mounted) return;
+
+    if (feed == null) {
+      setState(() {
+        _cameraFeed = null;
+        _cameraLoading = false;
+        _cameraError =
+            'No hay un stream disponible para tus cámaras en este momento.';
+      });
+      return;
     }
 
-    await controller.initialize();
-    controller
-      ..setLooping(true)
-      ..setVolume(0)
-      ..play();
-
     setState(() {
-      _videoUrl = stream;
-      _videoController = controller;
+      _cameraFeed = feed;
+      _cameraLoading = false;
+      _cameraError = null;
     });
   }
 
   void _hideVideo() {
-    if (_videoController != null) {
-      _videoController!.pause();
-    }
     _videoAnimCtrl.reverse().then((_) {
       if (!mounted) return;
       setState(() => _showVideoPanel = false);
@@ -249,29 +252,160 @@ class _AiAssistantPageState extends State<AiAssistantPage>
     });
   }
 
-  Future<String?> _resolveCameraStreamUrl() async {
+  Future<_CameraFeed?> _resolveCameraFeed() async {
     try {
       final devices = await _deviceRepository.listDevices();
       for (final device in devices) {
         final type = device.type.toLowerCase();
-        if (type.contains('cam')) {
-          final signals = await _remoteService.fetchLiveSignals(device.id);
-          for (final signal in signals) {
-            final stream = signal.extra['stream'];
-            if (stream is String && stream.trim().isNotEmpty) {
-              return stream.trim();
-            }
-            final snapshot = signal.snapshotPath;
-            if (snapshot != null && snapshot.isNotEmpty) {
-              return snapshot;
+        if (!type.contains('cam')) continue;
+
+        String? deviceIp = device.ip?.trim();
+        String? host;
+        final candidateStreams = <String>[];
+        final candidateSnapshots = <String>[];
+
+        final signals = await _remoteService.fetchLiveSignals(device.id);
+        for (final signal in signals) {
+          final extra = signal.extra;
+          final stream = extra['stream'] ?? extra['stream_url'];
+          if (stream is String && stream.trim().isNotEmpty) {
+            candidateStreams.add(stream);
+          }
+          final snapshot = signal.snapshotPath ?? extra['snapshot'];
+          if (snapshot is String && snapshot.trim().isNotEmpty) {
+            candidateSnapshots.add(snapshot);
+          }
+          if (deviceIp == null || deviceIp.isEmpty) {
+            final ipExtra = extra['ip'];
+            if (ipExtra is String && ipExtra.trim().isNotEmpty) {
+              deviceIp = ipExtra.trim();
             }
           }
+          host ??= (extra['host'] as String?)?.trim();
         }
+
+        final streamUrl = _pickStreamUrl(
+          candidateStreams,
+          deviceIp: deviceIp,
+          host: host,
+        );
+
+        if (streamUrl == null) {
+          continue;
+        }
+
+        final snapshotUrl =
+            _pickSnapshotUrl(
+              candidateSnapshots,
+              deviceIp: deviceIp,
+              host: host,
+            ) ??
+            _normalizeSnapshot('/photo', deviceIp: deviceIp, host: host);
+
+        return _CameraFeed(
+          streamUrl: streamUrl,
+          snapshotUrl: snapshotUrl,
+          deviceName: device.name.isNotEmpty ? device.name : null,
+        );
       }
     } catch (e) {
-      debugPrint('No camera stream available: $e');
+      debugPrint('Camera feed resolution failed: $e');
     }
     return null;
+  }
+
+  String? _pickStreamUrl(
+    List<String> candidates, {
+    String? deviceIp,
+    String? host,
+  }) {
+    for (final candidate in candidates) {
+      final url = _normalizeStream(candidate, deviceIp: deviceIp, host: host);
+      if (url != null) return url;
+    }
+    return _normalizeStream('/stream', deviceIp: deviceIp, host: host);
+  }
+
+  String? _pickSnapshotUrl(
+    List<String> candidates, {
+    String? deviceIp,
+    String? host,
+  }) {
+    for (final candidate in candidates) {
+      final url = _normalizeSnapshot(candidate, deviceIp: deviceIp, host: host);
+      if (url != null) return url;
+    }
+    return null;
+  }
+
+  String? _normalizeStream(String? raw, {String? deviceIp, String? host}) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) return null;
+    final lower = value.toLowerCase();
+    if (lower.startsWith('http://') ||
+        lower.startsWith('https://') ||
+        lower.startsWith('rtsp://')) {
+      return value;
+    }
+    final base = _resolveBaseUrl(deviceIp, host);
+    if (base == null) return null;
+    if (value.startsWith('/')) {
+      return _joinUrl(base, value);
+    }
+    return _joinUrl(base, '/$value');
+  }
+
+  String? _normalizeSnapshot(String? raw, {String? deviceIp, String? host}) {
+    final value = raw?.trim();
+    if (value == null || value.isEmpty) return null;
+    final lower = value.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) {
+      return value;
+    }
+    if (lower.startsWith('/storage')) {
+      final base = Environment.supabaseUrl.trim();
+      if (base.isEmpty) return null;
+      return _joinUrl(base, value);
+    }
+    final base = _resolveBaseUrl(deviceIp, host);
+    if (base == null) return null;
+    if (value.startsWith('/')) {
+      return _joinUrl(base, value);
+    }
+    return _joinUrl(base, '/$value');
+  }
+
+  String? _resolveBaseUrl(String? ip, String? host) {
+    final trimmedIp = ip?.trim();
+    if (trimmedIp != null && trimmedIp.isNotEmpty) {
+      if (trimmedIp.startsWith('http://') || trimmedIp.startsWith('https://')) {
+        return trimmedIp;
+      }
+      return 'http://$trimmedIp';
+    }
+    final trimmedHost = host?.trim();
+    if (trimmedHost != null && trimmedHost.isNotEmpty) {
+      if (trimmedHost.startsWith('http://') ||
+          trimmedHost.startsWith('https://')) {
+        return trimmedHost;
+      }
+      final suffix = trimmedHost.contains('.') ? '' : '.local';
+      return 'http://$trimmedHost$suffix';
+    }
+    return null;
+  }
+
+  String _joinUrl(String base, String path) {
+    if (path.isEmpty) return base;
+    final hasBaseSlash = base.endsWith('/');
+    final hasPathSlash = path.startsWith('/');
+    if (hasBaseSlash && hasPathSlash) {
+      return '$base${path.substring(1)}';
+    }
+    if (!hasBaseSlash && !hasPathSlash) {
+      return '$base/$path';
+    }
+    return '$base$path';
   }
 
   void _sendSuggested(String text) {
@@ -283,13 +417,13 @@ class _AiAssistantPageState extends State<AiAssistantPage>
     const keywords = [
       'seguridad',
       'alarma',
-      'cámara',
+      'cÃÂÃÂÃÂÃÂ!mara',
       'camara',
       'sensor',
-      'detección',
+      'detecciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n',
       'deteccion',
       'puerta',
-      'notificación',
+      'notificaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n',
       'notificacion',
       'intruso',
       'video',
@@ -353,11 +487,13 @@ class _AiAssistantPageState extends State<AiAssistantPage>
 
     for (final event in events.skip(1).take(3)) {
       buffer.writeln(
-        '- ${event.label} · ${event.deviceName} · ${_timeFormat.format(event.createdAt)}',
+        '- ${event.label} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· ${event.deviceName} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· ${_timeFormat.format(event.createdAt)}',
       );
     }
     if (events.length > 4) {
-      buffer.writeln('… ${events.length - 4} eventos adicionales.');
+      buffer.writeln(
+        'ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¦ ${events.length - 4} eventos adicionales.',
+      );
     }
     return buffer.toString();
   }
@@ -365,14 +501,16 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   String _listRecentNotifications() {
     final events = SecurityEventStore.all().take(5).toList();
     if (events.isEmpty) return 'ai.summary.none'.tr;
-    final buffer = StringBuffer('Últimas alertas:\n');
+    final buffer = StringBuffer(
+      'ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂltimas alertas:\n',
+    );
     for (final event in events) {
       buffer.writeln(
-        '• ${event.label} · ${event.deviceName} · ${_timeFormat.format(event.createdAt)}',
+        'ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ ${event.label} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· ${event.deviceName} ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ· ${_timeFormat.format(event.createdAt)}',
       );
     }
     buffer.writeln(
-      'Puedes abrir la bandeja de notificaciones para ver las imágenes adjuntas.',
+      'Puedes abrir la bandeja de notificaciones para ver las imÃÂÃÂÃÂÃÂ!genes adjuntas.',
     );
     return buffer.toString();
   }
@@ -414,7 +552,10 @@ class _AiAssistantPageState extends State<AiAssistantPage>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [cs.surface, cs.surfaceVariant.withOpacity(0.7)],
+                colors: [
+                  cs.surface,
+                  cs.surfaceContainerHighest.withValues(alpha: 0.7),
+                ],
               ),
             ),
           ),
@@ -446,8 +587,9 @@ class _AiAssistantPageState extends State<AiAssistantPage>
                 },
                 child: _showVideoPanel
                     ? _VideoPanel(
-                        controller: _videoController,
-                        videoUrl: _videoUrl,
+                        feed: _cameraFeed,
+                        loading: _cameraLoading,
+                        error: _cameraError,
                       )
                     : const SizedBox.shrink(),
               ),
@@ -518,21 +660,38 @@ class _AiAssistantPageState extends State<AiAssistantPage>
   }
 }
 
-class _VideoPanel extends StatelessWidget {
-  const _VideoPanel({required this.controller, required this.videoUrl});
+class _CameraFeed {
+  const _CameraFeed({
+    required this.streamUrl,
+    this.snapshotUrl,
+    this.deviceName,
+  });
 
-  final VideoPlayerController? controller;
-  final String? videoUrl;
+  final String streamUrl;
+  final String? snapshotUrl;
+  final String? deviceName;
+}
+
+class _VideoPanel extends StatelessWidget {
+  const _VideoPanel({
+    required this.feed,
+    required this.loading,
+    required this.error,
+  });
+
+  final _CameraFeed? feed;
+  final bool loading;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    if (controller == null || !controller!.value.isInitialized) {
+    if (loading) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         height: 160,
         decoration: BoxDecoration(
-          color: cs.surfaceVariant,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(18),
         ),
         alignment: Alignment.center,
@@ -540,15 +699,32 @@ class _VideoPanel extends StatelessWidget {
       );
     }
 
+    if (feed == null) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          error ?? 'No fue posible abrir el stream de la cámara.',
+          style: TextStyle(color: cs.onSurfaceVariant),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant.withOpacity(0.9),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -556,32 +732,39 @@ class _VideoPanel extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          children: [
-            AspectRatio(
-              aspectRatio: controller!.value.aspectRatio,
-              child: VideoPlayer(controller!),
-            ),
-            if (videoUrl != null)
-              Positioned(
-                left: 8,
-                bottom: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.45),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    videoUrl!,
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+        child: AspectRatio(
+          aspectRatio: 4 / 3,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              MjpegStreamView(
+                url: feed!.streamUrl,
+                fallbackSnapshotUrl: feed!.snapshotUrl,
+              ),
+              if (feed!.deviceName != null)
+                Positioned(
+                  left: 8,
+                  bottom: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      feed!.deviceName!,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -600,7 +783,7 @@ class _DetectionPanel extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cs.primaryContainer.withOpacity(0.35),
+        color: cs.primaryContainer.withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -632,8 +815,8 @@ class _DetectionPanel extends StatelessWidget {
               ),
               _InfoChip(
                 icon: Icons.lightbulb_outline,
-                label: 'Iluminación',
-                value: 'Automática',
+                label: 'IluminaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n',
+                value: 'AutomÃÂÃÂÃÂÃÂ!tica',
                 color: cs.tertiary,
               ),
             ],
@@ -663,7 +846,7 @@ class _InfoChip extends StatelessWidget {
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -676,7 +859,7 @@ class _InfoChip extends StatelessWidget {
             style: TextStyle(color: color, fontWeight: FontWeight.w600),
           ),
           const SizedBox(width: 8),
-          Text(value, style: TextStyle(color: color.withOpacity(0.9))),
+          Text(value, style: TextStyle(color: color.withValues(alpha: 0.9))),
         ],
       ),
     );
@@ -693,7 +876,9 @@ class _AiMessageBubble extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isUser = message.role == AiMessageRole.user;
     final alignment = isUser ? Alignment.centerRight : Alignment.centerLeft;
-    final bgColor = isUser ? cs.primary : cs.surfaceVariant.withOpacity(0.9);
+    final bgColor = isUser
+        ? cs.primary
+        : cs.surfaceContainerHighest.withValues(alpha: 0.9);
     final fgColor = isUser ? cs.onPrimary : cs.onSurface;
 
     return Align(
@@ -753,7 +938,7 @@ class _TypingBubbleState extends State<_TypingBubble>
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: cs.surfaceVariant,
+          color: cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
         ),
         child: AnimatedBuilder(
@@ -770,8 +955,8 @@ class _TypingBubbleState extends State<_TypingBubble>
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: CircleAvatar(
                     radius: 4,
-                    backgroundColor: cs.primary.withOpacity(
-                      opacity.clamp(0.2, 1),
+                    backgroundColor: cs.primary.withValues(
+                      alpha: opacity.clamp(0.2, 1),
                     ),
                   ),
                 );
@@ -809,7 +994,7 @@ class _QuickActions extends StatelessWidget {
               padding: const EdgeInsets.only(right: 12),
               child: ActionChip(
                 label: Text(action),
-                backgroundColor: cs.surfaceVariant,
+                backgroundColor: cs.surfaceContainerHighest,
                 onPressed: () => onSelected(action),
               ),
             );
@@ -839,7 +1024,7 @@ class _InputBar extends StatelessWidget {
             maxLines: 4,
             decoration: InputDecoration(
               filled: true,
-              fillColor: cs.surfaceVariant.withOpacity(0.6),
+              fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.6),
               hintText: 'ai.input.hint'.tr,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),

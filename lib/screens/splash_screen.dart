@@ -15,6 +15,7 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _showNext = false;
   late final VideoPlayerController _videoController;
   late final Future<void> _initializeVideo;
+  bool _videoReleased = false;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Espera 5 segundos antes de ir a la siguiente pantalla
     Timer(const Duration(seconds: 5), () {
       if (mounted) {
+        _releaseVideoController();
         setState(() => _showNext = true);
       }
     });
@@ -38,12 +40,24 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _videoController.dispose();
+    _releaseVideoController();
     super.dispose();
+  }
+
+  void _releaseVideoController() {
+    if (_videoReleased) return;
+    _videoReleased = true;
+    if (_videoController.value.isInitialized) {
+      _videoController.pause();
+    }
+    _videoController.dispose();
   }
 
   Widget _buildVideoLoader(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    if (_videoReleased) {
+      return const SizedBox.shrink();
+    }
     return FutureBuilder<void>(
       future: _initializeVideo,
       builder: (context, snapshot) {
@@ -68,12 +82,15 @@ class _SplashScreenState extends State<SplashScreen> {
           width: 260,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: cs.surface.withOpacity(0.18),
+            color: cs.surface.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: cs.onPrimary.withOpacity(0.6), width: 3),
+            border: Border.all(
+              color: cs.onPrimary.withValues(alpha: 0.6),
+              width: 3,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
+                color: Colors.black.withValues(alpha: 0.2),
                 blurRadius: 18,
                 offset: const Offset(0, 10),
               ),

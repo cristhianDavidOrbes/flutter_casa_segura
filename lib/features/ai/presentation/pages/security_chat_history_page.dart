@@ -36,7 +36,7 @@ class SecurityChatHistoryPage extends StatelessWidget {
                   : Alignment.centerLeft;
               final bgColor = isUser
                   ? cs.primary
-                  : cs.surfaceVariant.withOpacity(0.9);
+                  : cs.surfaceContainerHighest.withValues(alpha: 0.9);
               final fgColor = isUser ? cs.onPrimary : cs.onSurface;
               return Align(
                 alignment: alignment,
@@ -59,7 +59,7 @@ class SecurityChatHistoryPage extends StatelessWidget {
                       Text(
                         _formatDate(message.createdAt),
                         style: TextStyle(
-                          color: fgColor.withOpacity(0.7),
+                          color: fgColor.withValues(alpha: 0.7),
                           fontSize: 11,
                         ),
                       ),

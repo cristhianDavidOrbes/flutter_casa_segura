@@ -1,6 +1,4 @@
-﻿import 'dart:convert';
-import 'dart:typed_data';
-
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -88,7 +86,7 @@ class GeminiVisionService {
             'parts': [
               {
                 'text':
-                    'Compara las dos imagenes y responde únicamente con "MATCH" si es la misma persona o "NO_MATCH" si son personas distintas.',
+                    'Compara las dos imagenes y responde ÃÂÃÂÃÂÃÂºnicamente con "MATCH" si es la misma persona o "NO_MATCH" si son personas distintas.',
               },
               {
                 'inline_data': {

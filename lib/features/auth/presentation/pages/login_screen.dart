@@ -1,4 +1,3 @@
-﻿// lib/features/auth/presentation/pages/login_screen.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -27,10 +26,10 @@ class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   // ===== Layout & Rive sizing =====
   final double _topShift = 0;
-  double _riveHeight = 350;
-  double _overlap = 150;
-  double _riveScale = 1.8;
-  BoxFit _riveFit = BoxFit.contain;
+  final double _riveHeight = 350;
+  final double _overlap = 150;
+  final double _riveScale = 1.8;
+  final BoxFit _riveFit = BoxFit.contain;
 
   // ===== Estado UI =====
   bool _isLoading = false;
@@ -49,6 +48,8 @@ class _LoginScreenState extends State<LoginScreen>
   StateMachineController? _riveController;
   SMIInput<double>? _iAnimacion;
   SMIInput<bool>? _iContrasena;
+  SMIInput<bool>? _iUsuarioVerificado;
+  SMIInput<bool>? _iUsuarioNoVerificado;
 
   Timer? _idleTimer;
   bool _lockIdle = false;
@@ -75,14 +76,8 @@ class _LoginScreenState extends State<LoginScreen>
     _setupIdleTimer();
 
     _pwdFocus.addListener(() {
-      if (_pwdFocus.hasFocus) {
-        _lockIdle = true;
-        _setAnimacion(1);
-        _iContrasena?.value = _obscurePassword;
-      } else {
-        _lockIdle = false;
-        _randomIdle();
-      }
+      final bool lostFocus = !_pwdFocus.hasFocus;
+      _syncPasswordAnimation(forceIdle: lostFocus && !_passwordVisible);
       setState(() {});
     });
 
@@ -147,6 +142,10 @@ class _LoginScreenState extends State<LoginScreen>
 
         _iAnimacion = controller.findInput<double>('animacion');
         _iContrasena = controller.findInput<bool>('contrasena');
+        _iUsuarioVerificado =
+            controller.findInput<bool>('usuario_verificado');
+        _iUsuarioNoVerificado =
+            controller.findInput<bool>('usuario_no_verificado');
 
         if (kDebugMode) {
           for (final input in controller.inputs) {
@@ -155,6 +154,8 @@ class _LoginScreenState extends State<LoginScreen>
         }
 
         _setAnimacion(_pickIdle());
+        _setResultState(null);
+        _syncPasswordAnimation(forceIdle: true);
       }
 
       setState(() => _artboard = art);
@@ -178,9 +179,55 @@ class _LoginScreenState extends State<LoginScreen>
   void _randomIdle() => _setAnimacion(_pickIdle());
 
   // ===== Acciones UI =====
+  bool get _passwordVisible => !_obscurePassword;
+
+  void _syncPasswordAnimation({bool forceIdle = false}) {
+    _iContrasena?.value = _passwordVisible;
+    if (_isLoading) return;
+
+    final bool hasFocus = _pwdFocus.hasFocus;
+    final bool visible = _passwordVisible;
+
+    if (visible) {
+      _lockIdle = true;
+      _setAnimacion(2);
+      return;
+    }
+
+    if (hasFocus) {
+      _lockIdle = true;
+      _setAnimacion(1);
+      return;
+    }
+
+    _lockIdle = false;
+    if (forceIdle) {
+      _randomIdle();
+    }
+  }
+
   void _togglePasswordVisibility() {
     setState(() => _obscurePassword = !_obscurePassword);
-    _iContrasena?.value = _obscurePassword;
+    _syncPasswordAnimation(forceIdle: !_passwordVisible && !_pwdFocus.hasFocus);
+  }
+
+  void _setResultState(bool? success) {
+    _iUsuarioVerificado?.value = success == true;
+    _iUsuarioNoVerificado?.value = success == false;
+  }
+
+  Future<void> _playSuccessSequence() async {
+    _setResultState(true);
+    _setAnimacion(4);
+    await Future.delayed(const Duration(milliseconds: 3400));
+  }
+
+  Future<void> _playErrorSequence() async {
+    _setResultState(false);
+    _setAnimacion(4);
+    await Future.delayed(const Duration(milliseconds: 3400));
+    _setResultState(null);
+    _randomIdle();
   }
 
   Future<void> _login() async {
@@ -191,6 +238,7 @@ class _LoginScreenState extends State<LoginScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('auth.login.fillFields'.tr)),
       );
+      unawaited(_playErrorSequence());
       return;
     }
 
@@ -198,13 +246,14 @@ class _LoginScreenState extends State<LoginScreen>
       _isLoading = true;
       _lockIdle = true;
     });
+    _setResultState(null);
     _setAnimacion(3);
+
+    bool success = false;
 
     try {
       await _auth.signIn(email: email, password: password);
-
-      if (!mounted) return;
-      Get.offAll(() => HomePage(circleNotifier: widget.circleNotifier));
+      success = true;
     } on AppFailure catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -217,15 +266,30 @@ class _LoginScreenState extends State<LoginScreen>
           SnackBar(content: Text('auth.error.unexpected'.trParams({'error': e.toString()}))),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _lockIdle = false;
-        });
-        _randomIdle();
-      }
     }
+    if (!mounted) return;
+
+    if (success) {
+      await _playSuccessSequence();
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _lockIdle = false;
+      });
+      _syncPasswordAnimation(forceIdle: true);
+      widget.circleNotifier.moveToCenter();
+      Get.offAll(() => HomePage(circleNotifier: widget.circleNotifier));
+      return;
+    } else {
+      await _playErrorSequence();
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _lockIdle = false;
+    });
+    _randomIdle();
   }
 
   void _goToForgotPassword() {
@@ -239,15 +303,17 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       await _navCtrl.forward();
-    } finally {
       if (!mounted) return;
 
       await Get.to(() => RegisterScreen(circleNotifier: widget.circleNotifier));
+      if (!mounted) return;
 
       widget.circleNotifier.moveToBottom();
-      if (!mounted) return;
       _navCtrl.reset();
-      setState(() => _leaving = false);
+    } finally {
+      if (mounted) {
+        setState(() => _leaving = false);
+      }
     }
   }
 
@@ -315,7 +381,7 @@ class _LoginScreenState extends State<LoginScreen>
                         child: Text(
                           'Todavia no te has registrado?',
                           style: TextStyle(
-                            color: Theme.of(context).colorScheme.onBackground,
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontSize: 16,
                           ),
                         ),
@@ -374,7 +440,7 @@ class _LoginScreenState extends State<LoginScreen>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 10,
             offset: const Offset(4, 4),
           ),
@@ -399,10 +465,10 @@ class _LoginScreenState extends State<LoginScreen>
             alignment: Alignment.centerLeft,
             child: Text(
               'auth.login.emailLabel'.tr,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 16,
-              ),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 16,
+                          ),
             ),
           ),
           const SizedBox(height: 8),
@@ -437,10 +503,7 @@ class _LoginScreenState extends State<LoginScreen>
             obscureText: _obscurePassword,
             style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             cursorColor: Theme.of(context).colorScheme.primary,
-            onTap: () {
-              _setAnimacion(1);
-              _iContrasena?.value = _obscurePassword;
-            },
+            onTap: _syncPasswordAnimation,
             decoration: InputDecoration(
               filled: true,
               fillColor: Theme.of(context).colorScheme.surface,
@@ -450,7 +513,7 @@ class _LoginScreenState extends State<LoginScreen>
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.7),
+                  ).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
               border: OutlineInputBorder(

@@ -1,4 +1,3 @@
-// lib/features/auth/infrastructure/deeplink_service.dart
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:app_links/app_links.dart';

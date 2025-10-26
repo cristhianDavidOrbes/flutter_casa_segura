@@ -805,9 +805,7 @@ void supabaseApplyCommand(const String& commandJson,
   error = "";
 
   if (commandJson.indexOf("\"factory_reset\"") >= 0) {
-    executed = true;
-    pendingSoftAp = true;
-    Serial.println("[SUPA] factory_reset command received");
+    error = "factory_reset disabled";
     return;
   }
 
@@ -958,11 +956,7 @@ void supabasePollRemoteFlags() {
   }
 
   if (jsonFlagTrue(body, "forget_requested")) {
-    Serial.println("[SUPA] reinicio remoto solicitado via flags");
-    supabaseMarkRemoteForgetDone();
-    delay(150);
-    performRemoteReset();
-    return;
+    Serial.println("[SUPA] remote forget flag ignored (disabled).");
   }
 }
 

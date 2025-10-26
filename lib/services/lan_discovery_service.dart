@@ -1,4 +1,3 @@
-// lib/services/lan_discovery_service.dart
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
@@ -6,13 +5,13 @@ import 'package:multicast_dns/multicast_dns.dart';
 
 /// Dispositivo anunciado por mDNS como _casa._tcp.local
 class DiscoveredDevice {
-  final String id; // ip:port (ID de sesión de descubrimiento)
+  final String id; // ip:port (ID de sesiÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n de descubrimiento)
   final String name; // TXT 'name' (alias humano)
   final String ip; // IPv4
   final int port; // SRV port
   final String type; // TXT 'type' (esp32/esp8266/esp32cam...)
   final String? deviceId; // TXT 'id' (chip-id HEX) -> clave estable en la DB
-  final String? host; // TXT 'host' (hostname único mDNS)
+  final String? host; // TXT 'host' (hostname ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºnico mDNS)
 
   DiscoveredDevice({
     required this.id,
@@ -23,6 +22,23 @@ class DiscoveredDevice {
     this.deviceId,
     this.host,
   });
+}
+
+Future<RawDatagramSocket> _bindMdnsSocket(
+  dynamic host,
+  int port, {
+  bool reuseAddress = true,
+  bool reusePort = false,
+  int ttl = 255,
+  bool? v6Only,
+}) {
+  return RawDatagramSocket.bind(
+    InternetAddress.anyIPv4,
+    port,
+    reuseAddress: true,
+    reusePort: false,
+    ttl: ttl,
+  );
 }
 
 class LanDiscoveryService {
@@ -53,7 +69,7 @@ class LanDiscoveryService {
   final _found = <String, DiscoveredDevice>{};
   final _controller = StreamController<List<DiscoveredDevice>>.broadcast();
 
-  /// Stream con resultados acumulados mientras está corriendo `start()`.
+  /// Stream con resultados acumulados mientras estÃÂÃÂÃÂÃÂ! corriendo `start()`.
   Stream<List<DiscoveredDevice>> get stream => _controller.stream;
 
   /// Inicia escaneo continuo por [timeout] y publica en [stream].
@@ -66,25 +82,7 @@ class LanDiscoveryService {
     await _acquireMulticast();
 
     // Evita warning "reusePort not supported" en emulador Android.
-    RawDatagramSocketFactory factory =
-        (
-          dynamic host,
-          int port, {
-          bool reuseAddress = true,
-          bool reusePort = false,
-          int ttl = 255,
-          bool? v6Only,
-        }) {
-          return RawDatagramSocket.bind(
-            InternetAddress.anyIPv4,
-            port,
-            reuseAddress: true,
-            reusePort: false,
-            ttl: ttl,
-          );
-        };
-
-    final client = MDnsClient(rawDatagramSocketFactory: factory);
+    final client = MDnsClient(rawDatagramSocketFactory: _bindMdnsSocket);
     _client = client;
 
     try {
@@ -152,7 +150,7 @@ class LanDiscoveryService {
       }
     });
 
-    // Parada automática tras timeout
+    // Parada automÃÂÃÂÃÂÃÂ!tica tras timeout
     Future.delayed(timeout, () async {
       await sub.cancel();
       await stop(); // stop() es void
@@ -170,32 +168,14 @@ class LanDiscoveryService {
     await _releaseMulticast();
   }
 
-  /// Escaneo “one-shot” (bloqueante) que devuelve la lista encontrada en [timeout].
+  /// Escaneo ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂone-shotÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ (bloqueante) que devuelve la lista encontrada en [timeout].
   Future<List<DiscoveredDevice>> discover({
     Duration timeout = const Duration(seconds: 4),
   }) async {
     final found = <String, DiscoveredDevice>{};
     await _acquireMulticast();
 
-    RawDatagramSocketFactory factory =
-        (
-          dynamic host,
-          int port, {
-          bool reuseAddress = true,
-          bool reusePort = false,
-          int ttl = 255,
-          bool? v6Only,
-        }) {
-          return RawDatagramSocket.bind(
-            InternetAddress.anyIPv4,
-            port,
-            reuseAddress: true,
-            reusePort: false,
-            ttl: ttl,
-          );
-        };
-
-    final client = MDnsClient(rawDatagramSocketFactory: factory);
+    final client = MDnsClient(rawDatagramSocketFactory: _bindMdnsSocket);
     try {
       await client.start();
     } catch (_) {

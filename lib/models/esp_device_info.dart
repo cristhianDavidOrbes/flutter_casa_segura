@@ -1,7 +1,7 @@
 class EspDeviceInfo {
   final String id; // chip-id del dispositivo
   final String type; // "sensor" | "relay" | "cam" (libre)
-  final String fw; // versión fw
+  final String fw; // versiÃÂÃÂ³n fw
   final String host; // IP alcanzable en LAN (p.ej. "192.168.1.50")
   final int port; // normalmente 80
 

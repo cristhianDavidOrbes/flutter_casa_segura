@@ -199,8 +199,8 @@ class _StatusAvatar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final borderColor = online ? color : cs.outline;
     final fillColor = online
-        ? color.withOpacity(0.12)
-        : cs.surfaceVariant.withOpacity(0.6);
+        ? color.withValues(alpha: 0.12)
+        : cs.surfaceContainerHighest.withValues(alpha: 0.6);
 
     return Container(
       width: 48,
@@ -228,7 +228,7 @@ class _CameraPreview extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: colorScheme.outlineVariant),
-        color: colorScheme.surfaceVariant.withOpacity(0.7),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
       ),
       alignment: Alignment.center,
       child: Icon(Icons.videocam_outlined, color: colorScheme.onSurfaceVariant),
@@ -366,7 +366,7 @@ List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
     final pos = servo['pos'];
     if (pos is num) {
       final clamped = pos.clamp(0, 180).toInt();
-      addPair('Posicion', '${clamped} deg');
+      addPair('Posicion', '$clamped deg');
     }
   }
 

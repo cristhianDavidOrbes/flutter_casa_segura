@@ -4,10 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/device_control_service.dart';
-import '../services/remote_device_service.dart';
 import '../data/local/app_db.dart';
-
-enum ForgetOutcome { local, remoteConfirmed, remoteQueued }
 
 class DeviceRecord {
   const DeviceRecord({
@@ -51,7 +48,6 @@ class DeviceRepository {
   static final DeviceRepository instance = DeviceRepository._();
 
   final SupabaseClient _client = Supabase.instance.client;
-  final RemoteDeviceService _remoteService = RemoteDeviceService();
 
   String get _userId {
     final userId = _client.auth.currentUser?.id;
@@ -115,30 +111,30 @@ class DeviceRepository {
     await AppDb.instance.touchDeviceSeen(deviceId, type: normalized);
   }
 
-  Future<ForgetOutcome> forgetAndReset({
+  Future<void> forgetAndReset({
     required String deviceId,
     required String? ip,
   }) async {
+    final localIp = ip?.trim();
+    if (localIp == null || localIp.isEmpty) {
+      throw StateError(
+        'Necesitas estar en la misma red local del dispositivo para olvidarlo.',
+      );
+    }
+
     bool localReset = false;
     try {
-      if (ip != null && ip.isNotEmpty) {
-        localReset = await const DeviceControlService().factoryResetByIp(ip);
-      }
+      localReset = await const DeviceControlService().factoryResetByIp(localIp);
     } catch (e) {
       debugPrint('Error enviando factory reset: $e');
     }
 
-    if (localReset) {
-      await forget(deviceId);
-      return ForgetOutcome.local;
+    if (!localReset) {
+      throw StateError(
+        'No se pudo contactar al dispositivo en la red local. Verifica la conexion e intentalo de nuevo.',
+      );
     }
 
-    await _remoteService.ensureRemoteFlags(deviceId);
-    await _remoteService.requestRemoteForget(deviceId);
-    return ForgetOutcome.remoteQueued;
-  }
-
-  Future<void> finalizeRemoteForget(String deviceId) async {
     await forget(deviceId);
   }
 }

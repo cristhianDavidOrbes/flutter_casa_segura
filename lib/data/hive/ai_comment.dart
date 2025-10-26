@@ -1,12 +1,12 @@
 import 'package:hive/hive.dart';
 
 /// Modelo simple para comentarios de la IA almacenados en Hive.
-/// No usamos codegen; el adapter está escrito a mano.
+/// No usamos codegen; el adapter estÃÂÃÂÃÂÃÂ! escrito a mano.
 class AiComment {
   int? id; // clave interna de Hive (opcional si usas add())
   final String text; // comentario de la IA
   final int createdAt; // epoch millis
-  final String? deviceId; // opcional: a qué dispositivo se refiere
+  final String? deviceId; // opcional: a quÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ© dispositivo se refiere
   final int? eventId; // opcional: id del evento en SQLite
   final List<String>
   labels; // etiquetas (por ejemplo: ["persona","sospechoso"])
@@ -39,7 +39,7 @@ class AiComment {
   }
 }
 
-/// Adapter manual para Hive (elige un typeId único en tu app).
+/// Adapter manual para Hive (elige un typeId ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºnico en tu app).
 class AiCommentAdapter extends TypeAdapter<AiComment> {
   @override
   final int typeId = 1;

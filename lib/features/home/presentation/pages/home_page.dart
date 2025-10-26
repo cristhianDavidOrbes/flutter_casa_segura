@@ -1,4 +1,3 @@
-﻿// lib/features/home/presentation/pages/home_page.dart
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io';
@@ -24,7 +23,6 @@ import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/fam
 import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/family_member_detail_page.dart';
 import 'package:flutter_seguridad_en_casa/features/security/application/security_monitor_service.dart';
 import 'package:flutter_seguridad_en_casa/features/security/presentation/pages/notifications_page.dart';
-import 'package:flutter_seguridad_en_casa/features/settings/presentation/widgets/language_selector_sheet.dart';
 import 'package:flutter_seguridad_en_casa/features/settings/presentation/pages/settings_page.dart';
 
 class _ServoSnapshot {
@@ -44,7 +42,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
   final AuthController _auth = Get.find<AuthController>();
   final RemoteDeviceService _remoteService = RemoteDeviceService();
 
@@ -56,8 +54,8 @@ class _HomePageState extends State<HomePage> {
   List<Device> _activeDevices = const [];
   bool _loading = true;
 
-  /// IDs que están “online” según mDNS (refrescado periódico).
-  /// Se intentará mapear por `device_id`, luego por `host`, y por IP.
+  /// IDs que estan ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂonlineÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ segun mDNS (refrescado periodico).
+  /// Se intentara mapear por `device_id`, luego por `host`, y por IP.
   final Set<String> _onlineKeys = <String>{};
   Timer? _lanTimer;
 
@@ -73,8 +71,12 @@ class _HomePageState extends State<HomePage> {
   final Map<String, Map<String, dynamic>> _detectorLiveData = {};
   final Map<String, Timer> _detectorPollTimers = {};
 
-  final _pageCtrl = PageController(viewportFraction: 0.48);
+  final _pageCtrl = PageController(viewportFraction: 0.7);
+  final ScrollController _scrollCtrl = ScrollController();
   double _page = 0;
+  double _scrollOffset = 0;
+  late final AnimationController _headerCtrl;
+  late final Animation<double> _headerCurve;
 
   Device? _deviceById(String deviceId) {
     final lower = deviceId.trim().toLowerCase();
@@ -94,7 +96,7 @@ class _HomePageState extends State<HomePage> {
     final base = deviceId.trim().toLowerCase();
     if (base.isNotEmpty) {
       keys.add('host:$base');
-      keys.add('host:${base}.local');
+      keys.add('host:$base.local');
     }
     final extra = host?.trim().toLowerCase();
     if (extra != null && extra.isNotEmpty) {
@@ -150,8 +152,25 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _headerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _headerCurve = CurvedAnimation(
+      parent: _headerCtrl,
+      curve: Curves.easeOutCubic,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _headerCtrl.forward();
+      }
+    });
     SecurityMonitorService.instance.start();
     _pageCtrl.addListener(() => setState(() => _page = _pageCtrl.page ?? 0));
+    _scrollCtrl.addListener(() {
+      final next = _scrollCtrl.offset.clamp(0.0, 280.0);
+      setState(() => _scrollOffset = next);
+    });
     _refresh();
     _startLanPolling();
   }
@@ -160,6 +179,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _lanTimer?.cancel();
     _pageCtrl.dispose();
+    _scrollCtrl.dispose();
+    _headerCtrl.dispose();
     for (final sub in _servoSignalSubs.values) {
       sub.cancel();
     }
@@ -172,6 +193,7 @@ class _HomePageState extends State<HomePage> {
     for (final timer in _detectorPollTimers.values) {
       timer.cancel();
     }
+    SecurityMonitorService.instance.stop();
     super.dispose();
   }
 
@@ -186,7 +208,7 @@ class _HomePageState extends State<HomePage> {
       final famRows = await (await db.database).query(FamilyMember.tableName);
 
       // 2) Dispositivos registrados (DB local). Esto asegura que
-      //    SIEMPRE mostramos los registrados —aunque estén desconectados—.
+      //    SIEMPRE mostramos los registrados -aunque esten desconectados-.
       final devsLocal = await db.fetchAllDevices();
 
       final active = devsLocal.where((d) => d.homeActive).toList();
@@ -499,7 +521,8 @@ class _HomePageState extends State<HomePage> {
   void _handleDetectorSignals(String deviceId, List<RemoteLiveSignal> signals) {
     final data = _extractDetectorData(signals);
     final latest = _latestUpdatedAt(signals);
-    final isFresh = latest != null && _isTimestampFresh(latest);
+    final freshTimestamp =
+        (latest != null && _isTimestampFresh(latest)) ? latest : null;
     final hostHint = data != null ? data['host']?.toString() : null;
     final ipHint = data != null ? data['ip']?.toString() : null;
 
@@ -509,8 +532,9 @@ class _HomePageState extends State<HomePage> {
       } else {
         _detectorLiveData.remove(deviceId);
       }
-      if (isFresh && latest != null) {
-        _markDeviceOnline(deviceId, host: hostHint, ip: ipHint, when: latest);
+      if (freshTimestamp != null) {
+        final ts = freshTimestamp;
+        _markDeviceOnline(deviceId, host: hostHint, ip: ipHint, when: ts);
       } else {
         _markDeviceOffline(deviceId, host: hostHint, ip: ipHint);
       }
@@ -525,24 +549,26 @@ class _HomePageState extends State<HomePage> {
         _detectorLiveData.remove(deviceId);
       }
 
-      if (isFresh && latest != null) {
+      if (freshTimestamp != null) {
+        final ts = freshTimestamp;
         updatedInMemory = _markDeviceOnline(
           deviceId,
           host: hostHint,
           ip: ipHint,
-          when: latest,
+          when: ts,
         );
       } else {
         _markDeviceOffline(deviceId, host: hostHint, ip: ipHint);
       }
     });
 
-    if (isFresh && latest != null && updatedInMemory) {
+    if (freshTimestamp != null && updatedInMemory) {
+      final ts = freshTimestamp;
       unawaited(
         AppDb.instance.touchDeviceSeen(
           deviceId,
           ip: ipHint ?? _deviceIp(deviceId),
-          whenMs: latest.millisecondsSinceEpoch,
+          whenMs: ts.millisecondsSinceEpoch,
         ),
       );
     }
@@ -559,7 +585,8 @@ class _HomePageState extends State<HomePage> {
         final signals = await _remoteService.fetchLiveSignals(deviceId);
         final data = _extractDetectorData(signals);
         final latest = _latestUpdatedAt(signals);
-        final isFresh = latest != null && _isTimestampFresh(latest);
+        final freshTimestamp =
+            (latest != null && _isTimestampFresh(latest)) ? latest : null;
         final hostHint = data != null ? data['host']?.toString() : null;
         final ipHint = data != null ? data['ip']?.toString() : null;
 
@@ -567,19 +594,20 @@ class _HomePageState extends State<HomePage> {
           if (data != null) {
             _detectorLiveData[deviceId] = data;
           }
-          if (isFresh && latest != null) {
+          if (freshTimestamp != null) {
+            final ts = freshTimestamp;
             final updated = _markDeviceOnline(
               deviceId,
               host: hostHint,
               ip: ipHint,
-              when: latest,
+              when: ts,
             );
             if (updated) {
               unawaited(
                 AppDb.instance.touchDeviceSeen(
                   deviceId,
                   ip: ipHint ?? _deviceIp(deviceId),
-                  whenMs: latest.millisecondsSinceEpoch,
+                  whenMs: ts.millisecondsSinceEpoch,
                 ),
               );
             }
@@ -593,23 +621,25 @@ class _HomePageState extends State<HomePage> {
         if (data != null) {
           setState(() {
             _detectorLiveData[deviceId] = data;
-            if (isFresh && latest != null) {
+            if (freshTimestamp != null) {
+              final ts = freshTimestamp;
               updatedInMemory = _markDeviceOnline(
                 deviceId,
                 host: hostHint,
                 ip: ipHint,
-                when: latest,
+                when: ts,
               );
             } else {
               _markDeviceOffline(deviceId, host: hostHint, ip: ipHint);
             }
           });
-          if (isFresh && latest != null && updatedInMemory) {
+          if (freshTimestamp != null && updatedInMemory) {
+            final ts = freshTimestamp;
             unawaited(
               AppDb.instance.touchDeviceSeen(
                 deviceId,
                 ip: ipHint ?? _deviceIp(deviceId),
-                whenMs: latest.millisecondsSinceEpoch,
+                whenMs: ts.millisecondsSinceEpoch,
               ),
             );
           }
@@ -949,7 +979,7 @@ class _HomePageState extends State<HomePage> {
       error = await _sendServoCommandRemote(id, on);
     } catch (e) {
       error = 'Error al enviar el comando al servo.';
-      debugPrint('Error toggling servo ' + id + ': ' + e.toString());
+      debugPrint('Error toggling servo $id: $e');
     } finally {
       _setServoBusy(id, false);
     }
@@ -1030,9 +1060,7 @@ class _HomePageState extends State<HomePage> {
       }
       return actuator;
     } catch (e) {
-      debugPrint(
-        'Error fetching actuators for ' + deviceId + ': ' + e.toString(),
-      );
+      debugPrint('Error fetching actuators for $deviceId: $e');
       return null;
     }
   }
@@ -1070,7 +1098,7 @@ class _HomePageState extends State<HomePage> {
           changed = true;
         }
       } catch (e) {
-        debugPrint('Error warming actuators for ' + id + ': ' + e.toString());
+        debugPrint('Error warming actuators for $id: $e');
       }
     }
     if (changed && mounted) {
@@ -1083,6 +1111,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _logout() async {
     await _auth.signOut();
+    SecurityMonitorService.instance.stop();
     if (!mounted) return;
     Get.offAll(() => LoginScreen(circleNotifier: widget.circleNotifier));
   }
@@ -1188,7 +1217,7 @@ class _HomePageState extends State<HomePage> {
     final ultrasonic = data['ultrasonic_ok'];
     if (ultrasonic is bool) {
       metrics.add(
-        _MetricInfo(label: 'Ultrasónico', value: ultrasonic ? 'OK' : 'Falla'),
+        _MetricInfo(label: 'Ultrasonico', value: ultrasonic ? 'OK' : 'Falla'),
       );
     }
 
@@ -1220,7 +1249,7 @@ class _HomePageState extends State<HomePage> {
       case _DeviceKind.servo:
         return 'Servo';
       case _DeviceKind.camera:
-        return 'Cámara';
+        return 'Camara';
       case _DeviceKind.detector:
         return 'Detector';
     }
@@ -1293,7 +1322,7 @@ class _HomePageState extends State<HomePage> {
       return LayoutBuilder(
         builder: (context, constraints) {
           final pos = servoData?['pos'];
-          final posText = pos is num ? '${pos.round()}Â°' : null;
+          final posText = pos is num ? '${pos.round()}ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂdeg' : null;
           final buttonWidth = math.min(
             math.max(constraints.maxWidth * 0.5, 110.0),
             isWide ? 160.0 : 136.0,
@@ -1312,7 +1341,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     if (posText != null)
                       Text(
-                        'Posición: $posText',
+                        'Posicion: $posText',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1341,7 +1370,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                   label: Text(servoOn ? 'Apagar' : 'Encender'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: servoOn ? cs.primary : cs.surfaceVariant,
+                    backgroundColor:
+                        servoOn ? cs.primary : cs.surfaceContainerHighest,
                     foregroundColor: servoOn ? cs.onPrimary : cs.onSurface,
                     padding: const EdgeInsets.symmetric(
                       vertical: 12,
@@ -1457,9 +1487,8 @@ class _HomePageState extends State<HomePage> {
       child: Align(alignment: Alignment.center, child: content),
     );
 
-    final borderColor = online
-        ? cs.primary.withOpacity(0.35)
-        : cs.outlineVariant;
+    final borderColor =
+        online ? cs.primary.withValues(alpha: 0.35) : cs.outlineVariant;
 
     final header = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1491,7 +1520,7 @@ class _HomePageState extends State<HomePage> {
                     child: Padding(
                       padding: const EdgeInsets.only(right: 4),
                       child: Text(
-                        online ? 'En línea' : 'Sin conexión',
+                        online ? 'En linea' : 'Sin conexion',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),
@@ -1525,7 +1554,7 @@ class _HomePageState extends State<HomePage> {
         border: Border.all(color: borderColor, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
@@ -1574,204 +1603,187 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('home.title'.tr),
-        actions: [
-          const ThemeToggleButton(),
-          IconButton(
-            tooltip: 'home.notifications'.tr,
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => Get.to(() => const NotificationsPage()),
-          ),
-          IconButton(
-            tooltip: 'home.settings'.tr,
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: _openSettings,
-          ),
-        ],
-        leading: IconButton(
-          tooltip: 'home.logout'.tr,
-          icon: const Icon(Icons.logout),
-          onPressed: _logout,
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : CustomScrollView(
-                slivers: [
-                  // —— Avatar del usuario grande y centrado ——
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 16, bottom: 8),
-                      child: Center(
-                        child: CircleAvatar(
-                          radius: 48,
-                          backgroundColor: cs.primaryContainer,
-                          child: Text(
-                            _initials(_user),
-                            style: TextStyle(
-                              color: cs.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 26,
-                            ),
-                          ),
-                        ),
-                      ),
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final media = MediaQuery.of(context);
+    final bool isDark = theme.brightness == Brightness.dark;
+    final Color headerForeground =
+        isDark ? cs.onPrimary : cs.onPrimaryContainer;
+    final Color headerSecondary = isDark
+        ? cs.onPrimary.withValues(alpha: 0.82)
+        : cs.onPrimaryContainer.withValues(alpha: 0.74);
+    final Color headerActionBackground = isDark
+        ? cs.onPrimary.withValues(alpha: 0.12)
+        : cs.onPrimaryContainer.withValues(alpha: 0.15);
+    final Color headerActionSplash = isDark
+        ? cs.onPrimary.withValues(alpha: 0.14)
+        : cs.onPrimaryContainer.withValues(alpha: 0.18);
+    const double headerHeight = 260.0;
+    final double paddingTop = media.padding.top;
+    Widget headerSection() {
+      return SizedBox(
+        height: headerHeight + paddingTop,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, paddingTop + 16, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _buildHeaderAction(
+                    icon: Icons.logout,
+                    tooltip: 'home.logout'.tr,
+                    onTap: _logout,
+                    foregroundColor: headerForeground,
+                    backgroundColor: headerActionBackground,
+                    splashColor: headerActionSplash,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'home.title'.tr,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: headerForeground,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
                     ),
                   ),
-
-                  // —— Sección Familia (carrusel con foco central) ——
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                      child: Row(
-                        children: [
-                          Icon(Icons.family_restroom, color: cs.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            'home.family'.tr,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: cs.primary,
-                            ),
-                          ),
-                          const Spacer(),
-                        ],
-                      ),
+                  const Spacer(),
+                  _buildHeaderAction(
+                    tooltip: 'Cambiar tema',
+                    child: ThemeToggleButton(
+                      color: headerForeground,
+                      padding: EdgeInsets.zero,
+                      iconSize: 22,
                     ),
+                    foregroundColor: headerForeground,
+                    backgroundColor: headerActionBackground,
+                    splashColor: headerActionSplash,
                   ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 200,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          const _FamilyBackdropOval(height: 360, width: 1200),
-                          if (_family.isEmpty)
-                            _EmptyInline(
-                              icon: Icons.person_add_alt_1,
-                              title: 'home.family.empty'.tr,
-                              actionText: 'home.family.add'.tr,
-                              onAction: () {
-                                Get.to(() => const AddFamilyMemberPage());
-                              },
-                            )
-                          else
-                            SizedBox.expand(
-                              child: PageView.builder(
-                                controller: _pageCtrl,
-                                itemCount: _family.length,
-                                padEnds: true,
-                                itemBuilder: (ctx, i) {
-                                  final t = (i - _page).abs().clamp(0, 1);
-                                  final scale = 1 - (0.25 * t);
-                                  final opacity = 1 - (0.55 * t);
-                                  return Align(
-                                    alignment: Alignment.topCenter,
-                                    child: FractionallySizedBox(
-                                      widthFactor: 0.9,
-                                      child: AnimatedScale(
-                                        scale: scale,
-                                        duration: const Duration(
-                                          milliseconds: 250,
-                                        ),
-                                        curve: Curves.easeOut,
-                                        child: AnimatedOpacity(
-                                          opacity: opacity,
-                                          duration: const Duration(
-                                            milliseconds: 250,
-                                          ),
-                                          child: _FamilyCard(
-                                            member: _family[i],
-                                            onTap: () => Get.to(
-                                              () => FamilyMemberDetailPage(
-                                                member: _family[i],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  _buildHeaderAction(
+                    icon: Icons.notifications_outlined,
+                    tooltip: 'home.notifications'.tr,
+                    onTap: () => Get.to(() => const NotificationsPage()),
+                    foregroundColor: headerForeground,
+                    backgroundColor: headerActionBackground,
+                    splashColor: headerActionSplash,
                   ),
-
-                  // —— Sección Dispositivos registrados (DB) + estado LAN (mDNS) ——
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-                      child: Row(
-                        children: [
-                          Icon(Icons.devices_other, color: cs.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            'home.devices'.tr,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: cs.primary,
-                            ),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _goToProvisioning,
-                            icon: const Icon(
-                              Icons.add_circle_outline,
-                              size: 16,
-                            ),
-                            label: Text('home.devices.add'.tr),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: _goToDevices,
-                            icon: const Icon(Icons.open_in_new, size: 16),
-                            label: Text('home.devices.all'.tr),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  _buildHeaderAction(
+                    icon: Icons.settings_outlined,
+                    tooltip: 'home.settings'.tr,
+                    onTap: _openSettings,
+                    foregroundColor: headerForeground,
+                    backgroundColor: headerActionBackground,
+                    splashColor: headerActionSplash,
                   ),
-                  if (_activeDevices.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: _EmptyInline(
-                          icon: Icons.smart_toy_outlined,
-                          title: 'home.devices.empty'.tr,
-                          actionText: 'home.devices.all'.tr,
-                          onAction: _goToDevices,
-                        ),
-                      ),
-                    )
-                  else
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        child: _buildDevicesGrid(),
-                      ),
-                    ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
                 ],
               ),
+              const SizedBox(height: 28),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _buildHeaderAvatar(cs),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Bienvenido, ${_displayName(_user)}',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: headerForeground,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tu hogar esta seguro.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: headerSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final Widget contentBody = _buildContentContainer(
+      _loading ? _buildLoadingPlaceholder(cs) : _buildHomeSections(cs),
+    );
+
+    return Scaffold(
+      backgroundColor: cs.surface,
+      extendBody: true,
+      body: Stack(
+        children: [
+          Positioned.fill(child: ColoredBox(color: cs.surface)),
+          AnimatedBuilder(
+            animation: _headerCurve,
+            builder: (context, _) {
+              final double progress = _headerCurve.value.clamp(0.0, 1.0);
+              final double circleSize = media.size.width * 1.7;
+              final double baseTop = -circleSize * (0.72 - 0.12 * progress);
+              final double parallaxShift = (_scrollOffset * 0.22);
+              final double wobble = math.sin((_scrollOffset + (_page * 32)) * 0.015) * 14;
+              final double top = baseTop + parallaxShift + wobble;
+              final double scale = _lerp(0.9, 1.02, progress - (_scrollOffset * 0.0004));
+              final double glowOpacity = (0.88 + math.sin((_scrollOffset + 24) * 0.02) * 0.06).clamp(0.75, 1.0);
+              return Positioned(
+                top: top,
+                left: (media.size.width - circleSize) / 2,
+                child: Transform.scale(
+                  scale: scale,
+                  child: Opacity(
+                    opacity: glowOpacity,
+                    child: Container(
+                      width: circleSize,
+                      height: circleSize,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.6 : 0.9),
+                        gradient: theme.brightness == Brightness.dark
+                            ? null
+                            : LinearGradient(
+                                colors: [
+                                  cs.primary.withValues(alpha: 0.94),
+                                  cs.primaryContainer.withValues(alpha: 0.8),
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          RefreshIndicator(
+            onRefresh: _refresh,
+            displacement: paddingTop + 60,
+            child: ListView(
+              controller: _scrollCtrl,
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              padding: EdgeInsets.zero,
+              children: [
+                headerSection(),
+                contentBody,
+                const SizedBox(height: 64),
+              ],
+            ),
+          ),
+        ],
       ),
-      // Barra inferior simple (sin botón extra de “agregar”, ya está en otra pantalla)
       bottomNavigationBar: _BottomNav(
         onIntelligence: () {
           Get.to(() => const AiAssistantPage());
@@ -1785,6 +1797,273 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildHeaderAction({
+    IconData? icon,
+    Widget? child,
+    String? tooltip,
+    VoidCallback? onTap,
+    Color? foregroundColor,
+    Color? backgroundColor,
+    Color? splashColor,
+  }) {
+    assert(icon != null || child != null, 'Provide an icon or a child');
+    final cs = Theme.of(context).colorScheme;
+    final Color fg = foregroundColor ?? cs.onPrimary;
+    final Color bg =
+        backgroundColor ?? cs.onPrimary.withValues(alpha: 0.12);
+    final Color splash = splashColor ??
+        (onTap != null
+            ? cs.onPrimary.withValues(alpha: 0.14)
+            : Colors.transparent);
+    final Widget content = child ?? Icon(icon, color: fg);
+
+    Widget button = Material(
+      color: bg,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        splashColor: splash,
+        highlightColor: Colors.transparent,
+        child: SizedBox(
+          height: 48,
+          width: 48,
+          child: Center(child: content),
+        ),
+      ),
+    );
+
+    if (tooltip != null && tooltip.isNotEmpty) {
+      button = Tooltip(message: tooltip, child: button);
+    }
+    return button;
+  }
+
+  Widget _buildHeaderAvatar(ColorScheme cs) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color borderColor = isDark
+        ? cs.primary.withValues(alpha: 0.45)
+        : cs.primaryContainer.withValues(alpha: 0.7);
+    final Color textColor = isDark ? cs.onSurface : cs.primary;
+    final Color shadowColor = isDark
+        ? Colors.black.withValues(alpha: 0.4)
+        : Colors.black.withValues(alpha: 0.16);
+
+    return AnimatedBuilder(
+      animation: _headerCurve,
+      builder: (context, _) {
+        final double progress = _headerCurve.value.clamp(0.0, 1.0);
+        final double scale = _lerp(0.82, 1.0, progress);
+        return Opacity(
+          opacity: progress,
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              width: 112,
+              height: 112,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: cs.surface,
+                border: Border.all(color: borderColor, width: 3),
+                boxShadow: [
+                  BoxShadow(
+                    color: shadowColor,
+                    blurRadius: 24,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  _initials(_user),
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContentContainer(Widget child) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + MediaQuery.of(context).padding.bottom),
+      child: child,
+    );
+  }
+
+  Widget _buildLoadingPlaceholder(ColorScheme cs) {
+    return SizedBox(
+      height: 220,
+      child: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeSections(ColorScheme cs) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        _buildSectionHeader(
+          icon: Icons.family_restroom,
+          title: 'home.family'.tr,
+          color: cs.primary,
+        ),
+        const SizedBox(height: 16),
+        _buildFamilyCarousel(cs),
+        const SizedBox(height: 28),
+        _buildDevicesHeader(context, cs),
+        const SizedBox(height: 24),
+        _buildDevicesSection(cs),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDevicesHeader(BuildContext context, ColorScheme cs) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color headerColor = isDark ? cs.primary : cs.onSurface;
+    final ButtonStyle deviceButtonStyle = TextButton.styleFrom(
+      foregroundColor: headerColor,
+      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+    );
+    return Row(
+      children: [
+        Icon(Icons.devices_other, color: headerColor),
+        const SizedBox(width: 8),
+        Text(
+          'home.devices'.tr,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: headerColor,
+          ),
+        ),
+        const Spacer(),
+        TextButton.icon(
+          onPressed: _goToProvisioning,
+          icon: const Icon(Icons.add_circle_outline, size: 16),
+          label: Text('home.devices.add'.tr),
+          style: deviceButtonStyle,
+        ),
+        const SizedBox(width: 8),
+        TextButton.icon(
+          onPressed: _goToDevices,
+          icon: const Icon(Icons.open_in_new, size: 16),
+          label: Text('home.devices.all'.tr),
+          style: deviceButtonStyle,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFamilyCarousel(ColorScheme cs) {
+    if (_family.isEmpty) {
+      return SizedBox(
+        height: 180,
+        child: Center(
+          child: _EmptyInline(
+            icon: Icons.person_add_alt_1,
+            title: 'home.family.empty'.tr,
+            actionText: 'home.family.add'.tr,
+            onAction: () => Get.to(() => const AddFamilyMemberPage()),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 220,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          const _FamilyBackdropOval(height: 360, width: 1200),
+          PageView.builder(
+            controller: _pageCtrl,
+            physics: const BouncingScrollPhysics(),
+            clipBehavior: Clip.none,
+            padEnds: false,
+            itemCount: _family.length,
+            itemBuilder: (ctx, i) {
+              final t = (i - _page).abs().clamp(0, 1);
+              final scale = 1 - (0.2 * t);
+              final opacity = 1 - (0.5 * t);
+              return Align(
+                alignment: Alignment.topCenter,
+                child: AnimatedOpacity(
+                  opacity: opacity,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: Transform.scale(
+                    scale: scale,
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: _FamilyCard(
+                        member: _family[i],
+                        onTap: () => Get.to(
+                          () => FamilyMemberDetailPage(member: _family[i]),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDevicesSection(ColorScheme cs) {
+    if (_activeDevices.isEmpty) {
+      return SizedBox(
+        height: 170,
+        child: Center(
+          child: _EmptyInline(
+            icon: Icons.smart_toy_outlined,
+            title: 'home.devices.empty'.tr,
+            actionText: 'home.devices.all'.tr,
+            onAction: _goToDevices,
+          ),
+        ),
+      );
+    }
+    return _buildDevicesGrid();
+  }
+
+  double _lerp(double a, double b, double t) => a + (b - a) * t;
+
   String _initials(AuthUser? u) {
     final name = (u?.name ?? '').trim();
     if (name.isNotEmpty) {
@@ -1796,9 +2075,19 @@ class _HomePageState extends State<HomePage> {
     final email = (u?.email ?? 'U');
     return email.isNotEmpty ? email[0].toUpperCase() : 'U';
   }
+
+  String _displayName(AuthUser? u) {
+    final name = (u?.name ?? '').trim();
+    if (name.isNotEmpty) return name;
+    final email = (u?.email ?? '').trim();
+    if (email.contains('@')) {
+      return email.split('@').first;
+    }
+    return email.isNotEmpty ? email : 'Usuario';
+  }
 }
 
-/* ======================= Widgets de Sección ======================= */
+/* ======================= Widgets de Seccion ======================= */
 
 class _FamilyCard extends StatelessWidget {
   const _FamilyCard({required this.member, this.onTap});
@@ -1810,7 +2099,10 @@ class _FamilyCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final photoPath = member.profileImagePath;
     final file = photoPath != null && photoPath.isNotEmpty ? File(photoPath) : null;
-    final hasPhoto = file != null && file.existsSync();
+    ImageProvider? photoProvider;
+    if (file != null && file.existsSync()) {
+      photoProvider = FileImage(file);
+    }
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1824,7 +2116,7 @@ class _FamilyCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
+                color: Colors.black.withValues(alpha: 0.18),
                 blurRadius: 10,
                 offset: const Offset(0, 6),
               ),
@@ -1836,8 +2128,8 @@ class _FamilyCard extends StatelessWidget {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: cs.primary,
-                backgroundImage: hasPhoto ? FileImage(file!) : null,
-                child: hasPhoto
+                backgroundImage: photoProvider,
+                child: photoProvider != null
                     ? null
                     : Text(
                         _initials(member.name),
@@ -1865,7 +2157,7 @@ class _FamilyCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: cs.onSecondaryContainer.withOpacity(0.8),
+                  color: cs.onSecondaryContainer.withValues(alpha: 0.8),
                 ),
               ),
             ],
@@ -1902,7 +2194,7 @@ class _MetricChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1937,7 +2229,7 @@ class _DeviceTypeBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bg = online ? cs.primaryContainer : cs.surfaceVariant;
+    final bg = online ? cs.primaryContainer : cs.surfaceContainerHighest;
     final fg = online ? cs.onPrimaryContainer : cs.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.all(10),
@@ -1986,7 +2278,7 @@ class _CameraPreview extends StatelessWidget {
   Widget _buildPlaceholder(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      color: cs.surfaceVariant,
+      color: cs.surfaceContainerHighest,
       alignment: Alignment.center,
       child: Icon(
         Icons.videocam_outlined,
@@ -2009,8 +2301,8 @@ class _FamilyBackdropOval extends StatelessWidget {
     final cs = theme.colorScheme;
     final bool isDark = theme.brightness == Brightness.dark;
     final Color fillColor = isDark
-        ? cs.surfaceVariant.withOpacity(0.55)
-        : cs.primary.withOpacity(0.28);
+        ? cs.surfaceContainerHighest
+        : cs.primaryContainer;
     return IgnorePointer(
       ignoring: true,
       child: OverflowBox(
@@ -2037,23 +2329,17 @@ class _EmptyInline extends StatelessWidget {
     required this.title,
     required this.actionText,
     required this.onAction,
-    this.circleHeight,
-    this.circleWidth,
-    this.circleColor,
   });
 
   final IconData icon;
   final String title;
   final String actionText;
   final VoidCallback onAction;
-  final double? circleHeight;
-  final double? circleWidth;
-  final Color? circleColor;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final content = Column(
+    return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Icon(icon, size: 36, color: cs.onSurfaceVariant),
@@ -2061,36 +2347,6 @@ class _EmptyInline extends StatelessWidget {
         Text(title, style: TextStyle(color: cs.onSurfaceVariant)),
         TextButton(onPressed: onAction, child: Text(actionText)),
       ],
-    );
-
-    final hasCircle =
-        circleHeight != null &&
-        circleWidth != null &&
-        circleHeight! > 0 &&
-        circleWidth! > 0;
-    if (!hasCircle) {
-      return content;
-    }
-
-    final background = OverflowBox(
-      alignment: Alignment.center,
-      minWidth: circleWidth!,
-      maxWidth: circleWidth!,
-      minHeight: circleHeight!,
-      maxHeight: circleHeight!,
-      child: ClipOval(
-        child: SizedBox(
-          width: circleWidth!,
-          height: circleHeight!,
-          child: ColoredBox(color: circleColor ?? cs.primary.withOpacity(0.08)),
-        ),
-      ),
-    );
-
-    return Stack(
-      alignment: Alignment.center,
-      clipBehavior: Clip.none,
-      children: [background, content],
     );
   }
 }
@@ -2123,7 +2379,7 @@ class _BottomNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),

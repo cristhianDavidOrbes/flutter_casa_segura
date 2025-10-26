@@ -1,4 +1,3 @@
-// lib/screens/provisioning_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -47,7 +46,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     if (ssid == null) {
       Get.snackbar(
         'Provisioning',
-        'No se encontró el AP del equipo (prefijo ${ProvisioningService.apPrefix}).',
+        'No se encontrÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³ el AP del equipo (prefijo ${ProvisioningService.apPrefix}).',
         snackPosition: SnackPosition.BOTTOM,
       );
     } else {
@@ -95,20 +94,34 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     if (status != PermissionStatus.granted) {
       Get.snackbar(
         'Provisioning',
-        'Permiso de ubicación requerido para escanear Wi-Fi.',
+        'Permiso de ubicaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n requerido para escanear Wi-Fi.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
 
     try {
-      FocusScope.of(context).unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() => _busy = true);
-      final List<WifiNetwork>? list = await WiFiForIoTPlugin.loadWifiList();
+      final List<dynamic>? rawList =
+          await WiFiForIoTPlugin.loadWifiList() as List<dynamic>?; // ignore: deprecated_member_use
+      if (!mounted) return;
+      final Iterable<dynamic> items =
+          rawList == null ? const <dynamic>[] : List<dynamic>.from(rawList);
       final names = <String>{};
-      for (final w in (list ?? const <WifiNetwork>[])) {
-        final s = (w.ssid ?? '').trim();
-        if (s.isNotEmpty) names.add(s);
+      for (final item in items) {
+        var ssid = '';
+        if (item is Map && item['ssid'] != null) {
+          ssid = item['ssid'].toString().trim();
+        } else {
+          try {
+            final value = (item as dynamic).ssid;
+            if (value != null) ssid = value.toString().trim();
+          } catch (_) {
+            ssid = '';
+          }
+        }
+        if (ssid.isNotEmpty) names.add(ssid);
       }
       final nets = names.toList()..sort();
       setState(() {
@@ -121,11 +134,13 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     } catch (_) {
       Get.snackbar(
         'Provisioning',
-        'No se pudo escanear Wi-Fi desde el teléfono.',
+        'No se pudo escanear Wi-Fi desde el telÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ©fono.',
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {
-      setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -159,13 +174,13 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
   String _resolveSuccessMessage(ProvisioningResult result) {
     final message = result.message?.trim();
     if (message == null || message.isEmpty) {
-      return 'Credenciales enviadas. El equipo se está conectando a tu Wi-Fi...';
+      return 'Credenciales enviadas. El equipo se estÃÂÃÂÃÂÃÂ! conectando a tu Wi-Fi...';
     }
     final lower = message.toLowerCase();
     if (lower.contains('abort') ||
         lower.contains('ap closed') ||
         lower.contains('ap_closed')) {
-      return 'Credenciales enviadas. El equipo se reiniciará y saldrá del modo AP.';
+      return 'Credenciales enviadas. El equipo se reiniciarÃÂÃÂÃÂÃÂ! y saldrÃÂÃÂÃÂÃÂ! del modo AP.';
     }
     if (lower.contains('success') ||
         lower.contains('ok') ||
@@ -173,7 +188,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
         lower.contains('connected')) {
       return message;
     }
-    return 'Credenciales enviadas. El equipo se está conectando a tu Wi-Fi...';
+    return 'Credenciales enviadas. El equipo se estÃÂÃÂÃÂÃÂ! conectando a tu Wi-Fi...';
   }
 
   DiscoveredDevice? _deviceFromPayload(
@@ -284,10 +299,6 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     final displayMessage = rawMessage != null && rawMessage.isNotEmpty
         ? rawMessage
         : null;
-    final showMessage =
-        displayMessage != null &&
-        (headline == null || headline.trim() != displayMessage);
-
     await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
@@ -299,11 +310,12 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (showMessage)
+                if (displayMessage != null &&
+                    (headline == null || headline.trim() != displayMessage))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      displayMessage!,
+                      displayMessage,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -402,7 +414,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
         _passCtrl.text.isEmpty) {
       Get.snackbar(
         'Provisioning',
-        'Selecciona una red e introduce la contraseña.',
+        'Selecciona una red e introduce la contraseÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±a.',
         snackPosition: SnackPosition.BOTTOM,
       );
       return;
@@ -443,6 +455,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     await prov.releaseWifiRouting();
     await Future.delayed(const Duration(seconds: 2));
     await _showProvisionAck(result, headline: successMessage);
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -497,7 +510,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
     if (_apGoneAfterProvision) {
       Get.snackbar(
         'Provisioning',
-        'El dispositivo cerró su AP y se está conectando a tu Wi-Fi. Revisa la lista en unos segundos.',
+        'El dispositivo cerrÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³ su AP y se estÃÂÃÂÃÂÃÂ! conectando a tu Wi-Fi. Revisa la lista en unos segundos.',
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 4),
       );
@@ -507,7 +520,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
 
     Get.snackbar(
       'Provisioning',
-      'Credenciales enviadas. No pudimos confirmar aún; revisa en "Dispositivos".',
+      'Credenciales enviadas. No pudimos confirmar aÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºn; revisa en "Dispositivos".',
       snackPosition: SnackPosition.BOTTOM,
     );
   }
@@ -608,7 +621,8 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedSsid,
+                              key: ValueKey(_selectedSsid),
+                              initialValue: _selectedSsid,
                               isExpanded: true,
                               items: _phoneNets
                                   .map(
@@ -648,12 +662,12 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
                         controller: _passCtrl,
                         obscureText: _obscurePass,
                         decoration: InputDecoration(
-                          labelText: 'Contraseña',
+                          labelText: 'ContraseÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±a',
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
                             tooltip: _obscurePass
-                                ? 'Mostrar contraseña'
-                                : 'Ocultar contraseña',
+                                ? 'Mostrar contraseÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±a'
+                                : 'Ocultar contraseÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±a',
                             icon: Icon(
                               _obscurePass
                                   ? Icons.visibility
@@ -684,7 +698,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Tip: si no ves redes, activa Ubicación y concede permisos de Wi-Fi en Android.',
+                'Tip: si no ves redes, activa UbicaciÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³n y concede permisos de Wi-Fi en Android.',
                 style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 24),
@@ -692,7 +706,7 @@ class _ProvisioningScreenState extends State<ProvisioningScreen> {
           ),
           if (_busy)
             Container(
-              color: Colors.black.withOpacity(.15),
+              color: Colors.black.withValues(alpha: .15),
               child: const Center(child: CircularProgressIndicator()),
             ),
         ],

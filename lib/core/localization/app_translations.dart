@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 
 class AppTranslations extends Translations {
   @override
@@ -10,15 +10,15 @@ class AppTranslations extends Translations {
           'home.settings': 'Configuración',
           'home.aiTab': 'Inteligencia',
           'home.family': 'Familia',
-          'home.family.empty': 'Sin familiares',
-          'home.family.add': 'Añadir',
-          'home.family.pending': 'Pantalla de familia pendiente.',
+          'home.family.empty': 'Sin familiares registrados',
+          'home.family.add': 'Agregar',
+          'home.family.pending': 'Pantalla de familia en desarrollo.',
           'home.devices': 'Dispositivos',
           'home.devices.add': 'Agregar',
           'home.devices.all': 'Ver todos',
           'home.devices.empty': 'No hay dispositivos guardados todavía.',
-          'home.devices.error': 'Error obteniendo dispositivos:',
-          'home.ai.pending': 'Panel de IA pendiente.',
+          'home.devices.error': 'Error al obtener dispositivos:',
+          'home.ai.pending': 'Panel de IA en desarrollo.',
           'home.logout': 'Cerrar sesión',
           'ai.title': 'Asistente IA',
           'ai.input.hint': 'Escribe tu mensaje',
@@ -26,9 +26,9 @@ class AppTranslations extends Translations {
           'ai.quick.detections': 'Muestra las detecciones',
           'ai.quick.openDoor': 'Abrir la puerta',
           'ai.quick.closeDoor': 'Cerrar la puerta',
-          'ai.quick.summary': 'Dame un resumen de seguridad',
-          'ai.summary.none': 'No se registraron incidentes de seguridad hoy.',
-          'ai.summary.header': 'Resumen del día de seguridad:',
+          'ai.quick.summary': 'Dame el resumen de seguridad de hoy',
+          'ai.summary.none': 'No se detectaron incidentes de seguridad hoy.',
+          'ai.summary.header': 'Resumen de seguridad de hoy:',
           'ai.summary.total': 'Incidentes registrados: @count',
           'ai.summary.last': 'Último evento: @label en @device a las @time.',
           'ai.notifications.open': 'Abriendo panel de notificaciones...',
@@ -46,14 +46,13 @@ class AppTranslations extends Translations {
               'Selecciona el idioma de toda la aplicación.',
           'settings.language.es': 'Español',
           'settings.language.en': 'Inglés',
-
           'settings.language.close': 'Cerrar',
-          'auth.login.title': 'Inicio de sesión',
+          'auth.login.title': 'Iniciar sesión',
           'auth.login.emailLabel': 'Correo electrónico:',
           'auth.login.passwordLabel': 'Contraseña:',
           'auth.login.forgot': '¿Olvidaste tu contraseña?',
           'auth.login.submit': 'Iniciar sesión',
-          'auth.login.fillFields': 'Completa correo y contraseña.',
+          'auth.login.fillFields': 'Completa tu correo y contraseña.',
           'auth.error.unexpected': 'Error inesperado: @error',
           'auth.register.formInvalid': 'Revisa los campos del formulario.',
           'auth.register.title': 'Crear cuenta',
@@ -68,35 +67,37 @@ class AppTranslations extends Translations {
           'auth.register.passwordRequired': 'Escribe una contraseña',
           'auth.register.submit': 'Registrarse',
           'auth.register.resendSuccess':
-              'Te enviamos nuevamente el correo de verificación.',
-          'auth.register.resendError': 'Error al reenviar el correo: @error',
+              'Te enviamos el correo de verificación nuevamente.',
+          'auth.register.resendError':
+              'No se pudo reenviar el correo de verificación: @error',
           'auth.register.pendingVerification':
               'Enviamos un correo de verificación a @email.',
           'auth.register.resending': 'Reenviando...',
           'auth.register.resend': 'Reenviar correo de verificación',
-          'auth.register.hasAccount': '¿Ya tienes cuenta? Inicia sesión',
+          'auth.register.hasAccount': '¿Ya tienes una cuenta? Inicia sesión',
           'auth.reset.sent':
-              'Enlace de recuperación enviado. Revisa tu correo y abre el enlace.',
-          'auth.reset.failed': 'No se pudo enviar la recuperación.',
-          'auth.reset.error': 'Error al enviar recuperación: @error',
-          'auth.reset.emailRequired': 'Escribe tu correo',
-          'auth.reset.emailInvalid': 'Correo no válido',
-          'auth.reset.title': 'Recuperar contraseña',
+              'Enlace de recuperación enviado. Revisa tu bandeja y abre el enlace.',
+          'auth.reset.failed': 'No se pudo enviar la solicitud de recuperación.',
+          'auth.reset.error': 'Error al enviar la recuperación: @error',
+          'auth.reset.emailRequired': 'Ingresa tu correo',
+          'auth.reset.emailInvalid': 'Correo inválido',
+          'auth.reset.title': 'Restablecer contraseña',
           'auth.reset.description':
               'Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.',
           'auth.reset.submit': 'Enviar enlace de recuperación',
           'auth.reset.schemeInfo':
-              'Usaremos el esquema @scheme para abrir la app y permitirte cambiar tu contraseña.',
+              'Usaremos el esquema @scheme para reabrir la app y que puedas cambiar tu contraseña.',
           'family.list.title': 'Familia',
           'family.list.refresh': 'Actualizar',
           'family.list.add': 'Agregar familiar',
           'family.list.memberSince': 'Miembro desde @date',
-          'family.list.empty.title': 'Sin familiares registrados',
-          'family.list.empty.subtitle': 'Usa el botón para agregar a tu familia y vincular accesos.',
+          'family.list.empty.title': 'Aún no hay familiares',
+          'family.list.empty.subtitle':
+              'Usa el botón para agregar contactos de confianza a tu hogar.',
           'family.list.error.title': 'No se pudo cargar la familia',
           'family.add.title': 'Agregar familiar',
           'family.add.subtitle':
-              'Ingresa los datos básicos del familiar para mantener su registro de accesos.',
+              'Proporciona los datos básicos para controlar su acceso.',
           'family.add.name': 'Nombre completo',
           'family.add.nameHint': 'Ej. Ana Torres',
           'family.add.nameRequired': 'El nombre es obligatorio',
@@ -107,44 +108,48 @@ class AppTranslations extends Translations {
           'family.add.phoneHint': 'Número de contacto (opcional)',
           'family.add.email': 'Correo electrónico',
           'family.add.emailHint': 'correo@ejemplo.com',
-          'family.add.emailInvalid': 'Correo no válido',
+          'family.add.emailInvalid': 'Correo inválido',
           'family.add.photoButton': 'Seleccionar foto',
-          'family.add.photoError': 'Error al guardar la foto: @error',
+          'family.add.photoError': 'No se pudo guardar la foto: @error',
           'family.add.scheduleTitle': 'Horario permitido (opcional)',
           'family.add.scheduleStart': 'Hora de inicio',
           'family.add.scheduleEnd': 'Hora de fin',
           'family.add.scheduleAdd': 'Agregar horario',
           'family.add.scheduleRemove': 'Eliminar',
           'family.add.scheduleEmpty':
-              'Aún no agregaste horarios (opcional).',
-          'family.add.scheduleClear': 'Limpiar horario',
+              'Aún no se agregan horarios (opcional).',
+          'family.add.scheduleClear': 'Limpiar horarios',
           'family.add.scheduleInvalid':
               'La hora de fin debe ser posterior a la de inicio.',
           'family.add.submit': 'Guardar familiar',
           'family.add.error': 'No se pudo guardar: @error',
           'family.add.success.title': 'Familiar agregado',
-          'family.add.success.body': '@name ahora forma parte de tu red de confianza.',
+          'family.add.success.body':
+              '@name ahora forma parte de tu red de confianza.',
           'family.detail.logs.title': 'Actividad reciente',
-          'family.detail.log.entry': 'Ingreso al hogar',
-          'family.detail.log.exit': 'Salida del hogar',
-          'family.detail.logs.empty': 'Aún no hay registros de ingreso o salida para este familiar.',
-          'family.detail.logs.error': 'No fue posible obtener los registros',
+          'family.detail.log.entry': 'Entró al hogar',
+          'family.detail.log.exit': 'Salió del hogar',
+          'family.detail.logs.empty':
+              'Aún no hay registros de entradas o salidas para este familiar.',
+          'family.detail.logs.error':
+              'No se pudieron cargar los registros de actividad',
           'family.detail.memberSince': 'Registrado desde @date',
           'family.detail.schedule.window': 'Horario: @start - @end',
           'family.detail.note':
-              'Los horarios se basan en los eventos confirmados por el monitor inteligente.',
+              'Los horarios se basan en eventos confirmados por el monitor inteligente.',
           'settings.title': 'Configuración',
           'settings.section.general': 'General',
           'settings.section.family': 'Familia',
           'settings.language.current': 'Idioma actual: @value',
           'settings.push.title': 'Sincronizar notificaciones push',
           'settings.push.subtitle':
-              'Actualiza el token del dispositivo para seguir recibiendo alertas.',
-          'settings.push.syncing': 'Sincronizando token de notificaciones...',
-          'settings.push.success': 'Token de notificaciones actualizado.',
+              'Actualiza el token de este dispositivo para seguir recibiendo alertas.',
+          'settings.push.syncing': 'Sincronizando token...',
+          'settings.push.success': 'Token actualizado correctamente.',
           'settings.push.error': 'No se pudo sincronizar: @error',
           'settings.family.manage': 'Gestionar familia',
-          'settings.family.subtitle': 'Agrega o revisa los accesos de tus contactos.',
+          'settings.family.subtitle':
+              'Agrega contactos y revisa su actividad.',
         },
         'en': {
           'app.name': 'Safe Home',
@@ -178,7 +183,7 @@ class AppTranslations extends Translations {
           'ai.history.opened': 'Showing local conversation history.',
           'notifications.title': 'Notifications',
           'notifications.empty': 'No recent alerts.',
-          'notifications.list.subtitle': '@device Â· @time',
+          'notifications.list.subtitle': '@device · @time',
           'notifications.detail.title': 'Alert detail',
           'notifications.detail.device': 'Device: @device',
           'notifications.detail.time': 'Time: @time',
@@ -189,7 +194,6 @@ class AppTranslations extends Translations {
               'Choose the language for the entire app.',
           'settings.language.es': 'Spanish',
           'settings.language.en': 'English',
-
           'settings.language.close': 'Close',
           'auth.login.title': 'Sign in',
           'auth.login.emailLabel': 'Email:',
@@ -236,10 +240,12 @@ class AppTranslations extends Translations {
           'family.list.add': 'Add family member',
           'family.list.memberSince': 'Member since @date',
           'family.list.empty.title': 'No family members yet',
-          'family.list.empty.subtitle': 'Use the button to add trusted contacts to your home.',
+          'family.list.empty.subtitle':
+              'Use the button to add trusted contacts to your home.',
           'family.list.error.title': 'Could not load family',
           'family.add.title': 'Add family member',
-          'family.add.subtitle': 'Provide the basic details to keep track of their access.',
+          'family.add.subtitle':
+              'Provide the basic details to keep track of their access.',
           'family.add.name': 'Full name',
           'family.add.nameHint': 'e.g. Ana Torres',
           'family.add.nameRequired': 'Name is required',
@@ -266,37 +272,31 @@ class AppTranslations extends Translations {
           'family.add.submit': 'Save member',
           'family.add.error': 'Could not save: @error',
           'family.add.success.title': 'Family member added',
-          'family.add.success.body': '@name is now part of your trusted network.',
+          'family.add.success.body':
+              '@name is now part of your trusted network.',
           'family.detail.logs.title': 'Recent activity',
           'family.detail.log.entry': 'Entered the home',
           'family.detail.log.exit': 'Left the home',
-          'family.detail.logs.empty': 'No entry or exit records for this member yet.',
+          'family.detail.logs.empty':
+              'No entry or exit records for this member yet.',
           'family.detail.logs.error': 'Could not load activity records',
           'family.detail.memberSince': 'Registered since @date',
           'family.detail.schedule.window': 'Schedule: @start - @end',
-          'family.detail.note': 'Times are based on events confirmed by the smart monitor.',
+          'family.detail.note':
+              'Times are based on events confirmed by the smart monitor.',
           'settings.title': 'Settings',
           'settings.section.general': 'General',
           'settings.section.family': 'Family',
           'settings.language.current': 'Current language: @value',
           'settings.push.title': 'Sync push notifications',
-          'settings.push.subtitle': 'Update this device token to keep receiving alerts.',
+          'settings.push.subtitle':
+              'Update this device token to keep receiving alerts.',
           'settings.push.syncing': 'Syncing push token...',
           'settings.push.success': 'Push token updated successfully.',
           'settings.push.error': 'Failed to sync: @error',
           'settings.family.manage': 'Manage family',
-          'settings.family.subtitle': 'Add contacts and review their activity.',
+          'settings.family.subtitle':
+              'Add contacts and review their activity.',
         },
       };
 }
-
-
-
-
-
-
-
-
-
-
-

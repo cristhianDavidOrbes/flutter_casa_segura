@@ -1,14 +1,9 @@
-// lib/screens/device_detail_page.dart
-
 import 'dart:async';
 
 import 'dart:convert';
 
 import 'dart:io';
 
-import 'dart:typed_data';
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -18,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
 import 'package:flutter_seguridad_en_casa/models/device_remote_flags.dart';
+import 'package:flutter_seguridad_en_casa/core/presentation/widgets/mjpeg_stream_view.dart';
 import 'package:flutter_seguridad_en_casa/core/presentation/widgets/theme_toggle_button.dart';
 
 class DeviceDetailPage extends StatefulWidget {
@@ -75,8 +71,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   DeviceRemoteFlags? _remoteFlags;
   StreamSubscription<DeviceRemoteFlags?>? _remoteFlagsSub;
   bool _awaitingRemotePing = false;
-  bool _awaitingRemoteForget = false;
-  bool _remoteForgetRemoved = false;
 
   bool _pinging = false;
 
@@ -339,75 +333,21 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     }
   }
 
-  Future<void> _completeRemoteForget(bool done) async {
-    try {
-      await _repository.finalizeRemoteForget(widget.deviceId);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            done
-                ? 'Olvido remoto completado. El dispositivo ya esta en modo AP.'
-                : 'Olvido remoto aceptado. El dispositivo cambiara a modo AP en breve.',
-          ),
-        ),
-      );
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'No se pudo eliminar el dispositivo después del olvido remoto: $e',
-          ),
-        ),
-      );
-    }
-  }
-
   Future<void> _forgetAp() async {
     try {
-      final outcome = await _repository.forgetAndReset(
+      await _repository.forgetAndReset(
         deviceId: widget.deviceId,
         ip: _currentIp ?? widget.ip,
       );
       if (!mounted) return;
-      switch (outcome) {
-        case ForgetOutcome.local:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Dispositivo reiniciado por IP local. Volvera a modo AP en unos segundos.',
-              ),
-            ),
-          );
-          Navigator.of(context).pop();
-          break;
-        case ForgetOutcome.remoteConfirmed:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Orden remota confirmada. El dispositivo pasara a modo AP en breve.',
-              ),
-            ),
-          );
-          Navigator.of(context).pop();
-          break;
-        case ForgetOutcome.remoteQueued:
-          setState(() {
-            _awaitingRemoteForget = true;
-            _remoteForgetRemoved = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Orden encolada en Supabase. Se ejecutara cuando el equipo se conecte; vuelve a intentar si no cambia a modo AP.',
-              ),
-            ),
-          );
-          _refreshRemoteState(silent: true);
-          break;
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Dispositivo reiniciado por IP local. Volvera a modo AP en unos segundos.',
+          ),
+        ),
+      );
+      Navigator.of(context).pop();
     } on StateError catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -416,7 +356,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo completar el reinicio remoto: $e')),
+        SnackBar(content: Text('No se pudo completar el reinicio local: $e')),
       );
     }
   }
@@ -453,7 +393,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
   bool _autoRefresh = true;
 
-  Duration _period = const Duration(seconds: 2);
+  final Duration _period = const Duration(seconds: 2);
 
   Timer? _pollTimer;
 
@@ -747,7 +687,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         })
         .catchError((error, stackTrace) {
           debugPrint(
-            'No se pudieron obtener las señales remotas (intento ${attempt + 1}): $error',
+            'No se pudieron obtener las seÃÂÃÂÃÂÃÂ±ales remotas (intento ${attempt + 1}): $error',
           );
           if (!mounted) return;
           Future.delayed(const Duration(seconds: 5), () {
@@ -773,15 +713,6 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ping remoto confirmado por Supabase.')),
       );
-    }
-
-    final prevDone = previous?.forgetDone ?? false;
-    if (_awaitingRemoteForget && flags.forgetDone && !prevDone) {
-      _awaitingRemoteForget = false;
-      if (!_remoteForgetRemoved) {
-        _remoteForgetRemoved = true;
-        unawaited(_completeRemoteForget(true));
-      }
     }
   }
 
@@ -966,7 +897,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
         _remoteSnapshotMisses = 0;
       });
     } on StorageException catch (error) {
-      if (error.statusCode == 404) {
+      final code = error.statusCode?.toString();
+      if (code == '404') {
         _remoteSnapshotMisses++;
         _remoteSnapshotUrl = null;
         final resolved = await _resolveSnapshotObject(bucket, object);
@@ -1569,7 +1501,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
                 children: [
                   Container(
-                    color: cs.surfaceVariant,
+                    color: cs.surfaceContainerHighest,
 
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1671,7 +1603,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
               children: [
                 Container(
-                  color: cs.surfaceVariant,
+                  color: cs.surfaceContainerHighest,
 
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -1868,6 +1800,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
                         data: data!,
 
                         onCopyJson: () async {
+                          final messenger = ScaffoldMessenger.of(context);
                           await Clipboard.setData(
                             ClipboardData(
                               text: const JsonEncoder.withIndent(
@@ -1878,7 +1811,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
                           if (!mounted) return;
 
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                               content: Text('JSON copiado al portapapeles'),
                             ),
@@ -1905,7 +1838,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
                 children: [
                   Container(
-                    color: cs.surfaceVariant,
+                    color: cs.surfaceContainerHighest,
 
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1965,7 +1898,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
   Widget _buildCameraContent() {
     if (_hasStream) {
-      return _MjpegView(
+      return MjpegStreamView(
         url: 'http://$_displayHost/stream',
         fallbackSnapshotUrl: 'http://$_displayHost/photo',
       );
@@ -2048,31 +1981,8 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       }
     }
 
-    String forgetDescription() {
-      switch (flags.forgetStatus) {
-        case 'done':
-          final since = flags.forgetProcessedAt != null
-              ? _formatElapsed(
-                  DateTime.now().difference(flags.forgetProcessedAt!),
-                )
-              : 'instantes';
-          return 'Olvido remoto completado hace $since.';
-        case 'ack':
-          final since = flags.forgetAckAt != null
-              ? _formatElapsed(DateTime.now().difference(flags.forgetAckAt!))
-              : 'instantes';
-          return 'Olvido remoto aceptado. El dispositivo cambiara a modo AP (ack hace $since).';
-        case 'pending':
-          final since = flags.forgetRequestedAt != null
-              ? _formatElapsed(
-                  DateTime.now().difference(flags.forgetRequestedAt!),
-                )
-              : 'pocos segundos';
-          return 'Olvido remoto en espera (solicitado hace $since).';
-        default:
-          return 'Olvido remoto sin solicitudes activas.';
-      }
-    }
+    const String forgetInfo =
+        'El olvido remoto esta deshabilitado. Usa el modo AP local desde la misma red.';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2085,7 +1995,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            forgetDescription(),
+            forgetInfo,
             style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
           ),
         ],
@@ -2170,7 +2080,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       final extra = soundDo != null ? ' (DO=$soundDo)' : '';
       entries.add(_kv('Sonido', '$label$extra'));
     } else if (soundDo != null) {
-      entries.add(_kv('Micrófono DO', soundDo.toString()));
+      entries.add(_kv('MicrÃÂÃÂÃÂÃÂ³fono DO', soundDo.toString()));
     }
 
     if (distance != null) {
@@ -2285,9 +2195,10 @@ class _DataList extends StatelessWidget {
                   icon: const Icon(Icons.copy),
 
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(ctx);
                     await Clipboard.setData(ClipboardData(text: e.value));
-
-                    ScaffoldMessenger.of(ctx).showSnackBar(
+                    if (!ctx.mounted) return;
+                    messenger.showSnackBar(
                       const SnackBar(content: Text('Valor copiado')),
                     );
                   },
@@ -2317,320 +2228,6 @@ class _DataList extends StatelessWidget {
 /// - Intenta abrir /stream.
 
 /// - Si falla 3 veces seguidas, alterna a polling de /photo (snapshot).
-
-class _MjpegView extends StatefulWidget {
-  const _MjpegView({required this.url, this.fallbackSnapshotUrl});
-
-  final String url;
-
-  final String? fallbackSnapshotUrl;
-
-  @override
-  State<_MjpegView> createState() => _MjpegViewState();
-}
-
-class _MjpegViewState extends State<_MjpegView> {
-  HttpClient? _httpClient;
-
-  StreamSubscription<List<int>>? _sub;
-
-  // Parser state
-
-  String? _boundary;
-
-  final _buf = BytesBuilder(copy: false);
-
-  Uint8List? _lastFrame;
-
-  int _failCount = 0;
-
-  Timer? _snapshotTimer;
-
-  bool _closed = false;
-  bool _restartScheduled = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_startStream());
-  }
-
-  @override
-  void dispose() {
-    _closed = true;
-    unawaited(_stopStream());
-
-    _stopSnapshot();
-
-    super.dispose();
-  }
-
-  Future<void> _stopStream() async {
-    final sub = _sub;
-    _sub = null;
-    if (sub != null) {
-      try {
-        await sub.cancel();
-      } catch (_) {}
-    }
-    final client = _httpClient;
-    _httpClient = null;
-    client?.close(force: true);
-    _boundary = null;
-    _buf.clear();
-  }
-
-  void _stopSnapshot() {
-    _snapshotTimer?.cancel();
-
-    _snapshotTimer = null;
-  }
-
-  Future<void> _startStream() async {
-    if (_closed) return;
-
-    await _stopStream();
-    _stopSnapshot();
-
-    HttpClient? client;
-    try {
-      client = HttpClient();
-      client.connectionTimeout = const Duration(seconds: 6);
-      _httpClient = client;
-
-      final uri = Uri.parse(widget.url);
-      final request = await client.getUrl(uri);
-      request.headers.set(
-        HttpHeaders.acceptHeader,
-        'multipart/x-mixed-replace',
-      );
-      request.headers.set(HttpHeaders.connectionHeader, 'keep-alive');
-
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        client.close(force: true);
-        _httpClient = null;
-        _onStreamFail();
-        return;
-      }
-
-      final boundary = _extractBoundary(
-        response.headers.contentType?.parameters['boundary'],
-      );
-
-      if (boundary == null) {
-        client.close(force: true);
-        _httpClient = null;
-        _onStreamFail();
-        return;
-      }
-
-      _boundary = boundary;
-
-      _sub = response.listen(
-        _onData,
-        onError: (Object error, StackTrace stackTrace) =>
-            _handleStreamError(error, stackTrace),
-        onDone: _handleStreamDone,
-        cancelOnError: true,
-      );
-    } catch (_) {
-      client?.close(force: true);
-      if (identical(client, _httpClient)) {
-        _httpClient = null;
-      }
-      _onStreamFail();
-    }
-  }
-
-  String? _extractBoundary(String? b) {
-    if (b == null || b.isEmpty) return null;
-
-    if (b.startsWith('--')) return b;
-
-    return '--$b';
-  }
-
-  int _indexOf(List<int> data, List<int> pattern, [int start = 0]) {
-    if (pattern.isEmpty) return -1;
-
-    final plen = pattern.length;
-
-    final dlen = data.length;
-
-    for (int i = start; i <= dlen - plen; i++) {
-      int j = 0;
-
-      while (j < plen && data[i + j] == pattern[j]) {
-        j++;
-      }
-
-      if (j == plen) return i;
-    }
-
-    return -1;
-  }
-
-  void _onData(List<int> chunk) {
-    _buf.add(chunk);
-
-    final bytes = _buf.toBytes();
-
-    final boundary = _boundary!;
-
-    final bBytes = ascii.encode(boundary);
-
-    final nl = ascii.encode('\r\n');
-
-    final headerSep = ascii.encode('\r\n\r\n');
-
-    int searchFrom = 0;
-
-    while (true) {
-      int bIdx = _indexOf(bytes, bBytes, searchFrom);
-
-      if (bIdx < 0) break;
-
-      int hIdx = _indexOf(bytes, headerSep, bIdx);
-
-      if (hIdx < 0) break;
-
-      final headerPart = ascii.decode(
-        bytes.sublist(bIdx, hIdx),
-
-        allowInvalid: true,
-      );
-
-      int? contentLen;
-
-      final lines = headerPart.split('\r\n');
-
-      for (final ln in lines) {
-        final l = ln.toLowerCase();
-
-        if (l.startsWith('content-length:')) {
-          final v = l.split(':').last.trim();
-
-          contentLen = int.tryParse(v);
-
-          break;
-        }
-      }
-
-      final dataStart = hIdx + headerSep.length;
-
-      if (contentLen != null) {
-        if (bytes.length < dataStart + contentLen) break;
-
-        final frame = Uint8List.fromList(
-          bytes.sublist(dataStart, dataStart + contentLen),
-        );
-
-        _setFrame(frame);
-
-        searchFrom = dataStart + contentLen;
-      } else {
-        final nextB = _indexOf(bytes, bBytes, dataStart);
-
-        if (nextB < 0) break;
-
-        final frame = Uint8List.fromList(
-          bytes.sublist(dataStart, nextB - nl.length),
-        );
-
-        _setFrame(frame);
-
-        searchFrom = nextB;
-      }
-    }
-
-    if (searchFrom > 0 && searchFrom < bytes.length) {
-      _buf.clear();
-
-      _buf.add(bytes.sublist(searchFrom));
-    } else if (searchFrom >= bytes.length) {
-      _buf.clear();
-    }
-  }
-
-  void _setFrame(Uint8List frame) {
-    if (!mounted) return;
-
-    setState(() {
-      _lastFrame = frame;
-
-      _failCount = 0;
-    });
-  }
-
-  void _handleStreamError(Object error, StackTrace stackTrace) {
-    if (_closed) return;
-    _onStreamFail();
-  }
-
-  void _handleStreamDone() {
-    if (_closed) return;
-    _onStreamFail();
-  }
-
-  void _onStreamFail() {
-    if (_closed) return;
-
-    _failCount++;
-
-    if (_restartScheduled) return;
-    _restartScheduled = true;
-
-    unawaited(_recoverFromFailure());
-  }
-
-  Future<void> _recoverFromFailure() async {
-    try {
-      await _stopStream();
-
-      if (_failCount >= 3 && widget.fallbackSnapshotUrl != null) {
-        _startSnapshot();
-        await Future.delayed(const Duration(seconds: 5));
-      } else {
-        await Future.delayed(const Duration(milliseconds: 600));
-      }
-    } finally {
-      _restartScheduled = false;
-    }
-
-    if (_closed) return;
-
-    await _startStream();
-  }
-
-  void _startSnapshot() {
-    _stopSnapshot();
-
-    final url = widget.fallbackSnapshotUrl!;
-
-    _snapshotTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
-      try {
-        final res = await http
-            .get(Uri.parse(url))
-            .timeout(const Duration(seconds: 3));
-
-        if (res.statusCode == 200) {
-          _setFrame(res.bodyBytes);
-        }
-      } catch (_) {}
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_lastFrame == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Image.memory(_lastFrame!, gaplessPlayback: true, fit: BoxFit.cover);
-  }
-}
 
 class _RemoteSnapshotView extends StatelessWidget {
   const _RemoteSnapshotView({

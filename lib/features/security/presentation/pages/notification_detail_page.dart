@@ -66,7 +66,7 @@ class NotificationDetailPage extends StatelessWidget {
               Container(
                 height: 200,
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceVariant,
+                  color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 alignment: Alignment.center,
@@ -134,7 +134,7 @@ class _FamilyInfoBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final name = event.familyMemberName ?? member?.name ?? '—';
+    final name = event.familyMemberName ?? member?.name ?? 'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ';
     final window = _formatWindow(context, member);
     final status = event.familyScheduleMatched == false
         ? 'notifications.detail.familySchedule.off'.trParams({'window': window})
@@ -144,7 +144,7 @@ class _FamilyInfoBody extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceVariant,
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(

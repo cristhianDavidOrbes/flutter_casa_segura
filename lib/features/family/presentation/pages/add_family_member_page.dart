@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -120,7 +120,7 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   String _formatTime(TimeOfDay time) {
     final hour = time.hour.toString().padLeft(2, '0');
     final minute = time.minute.toString().padLeft(2, '0');
-    return '${hour}:${minute}';
+    return '$hour:$minute';
   }
 
   Future<void> _pickPhoto() async {
@@ -171,6 +171,7 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     );
     if (start == null) return;
 
+    if (!mounted) return;
     final end = await showTimePicker(
       context: context,
       initialTime: start,
@@ -271,7 +272,7 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
                       onTap: _pickPhoto,
                       child: CircleAvatar(
                         radius: 48,
-                        backgroundColor: cs.surfaceVariant,
+                        backgroundColor: cs.surfaceContainerHighest,
                         backgroundImage:
                             hasPhoto ? FileImage(photoFile!) : null,
                         child: hasPhoto

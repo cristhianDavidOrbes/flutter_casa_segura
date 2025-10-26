@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -84,7 +84,7 @@ class _HeaderCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -237,7 +237,7 @@ class _PresenceTile extends StatelessWidget {
         ? cs.errorContainer
         : isEntry
             ? cs.primaryContainer
-            : cs.surfaceVariant;
+            : cs.surfaceContainerHighest;
     final fg = isOutOfSchedule
         ? cs.onErrorContainer
         : isEntry
@@ -294,7 +294,7 @@ class _LogsEmptyView extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
       decoration: BoxDecoration(
-        color: cs.surfaceVariant,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(

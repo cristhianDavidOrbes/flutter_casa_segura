@@ -1,4 +1,3 @@
-// lib/data/local/app_db.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
@@ -139,7 +138,7 @@ class AppDb {
     }
   }
 
-  // -------- CRUDs básicos --------
+  // -------- CRUDs bÃÂÃÂÃÂÃÂ!sicos --------
   Future<int> insertMember(FamilyMember member) async {
     final db = await database;
     return db.insert(
@@ -238,8 +237,8 @@ class AppDb {
 
   // -------- Helpers de dispositivos --------
 
-  /// Inserta o actualiza por `device_id` (único).
-  /// Devuelve el rowId si insertó (0 si solo actualizó).
+  /// Inserta o actualiza por `device_id` (ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂºnico).
+  /// Devuelve el rowId si insertÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³ (0 si solo actualizÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ³).
   Future<int> upsertDeviceByDeviceId({
     required String deviceId,
     required String name,
@@ -263,7 +262,7 @@ class AppDb {
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
     if (inserted != 0) return inserted;
 
-    // update si ya existía
+    // update si ya existÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ­a
     await db.update(
       Device.tableName,
       {

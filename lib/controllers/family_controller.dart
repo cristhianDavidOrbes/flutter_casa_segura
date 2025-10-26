@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 
 import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
 import 'package:flutter_seguridad_en_casa/repositories/family_repository.dart';

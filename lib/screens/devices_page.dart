@@ -1,4 +1,3 @@
-// lib/screens/devices_page.dart
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -47,20 +46,6 @@ class _DevicesPageState extends State<DevicesPage> {
       final devices = await _repository.listDevices();
       final rows = <_Row>[];
       for (final device in devices) {
-        try {
-          await _remoteService.ensureRemoteFlags(device.id);
-        } catch (e) {
-          debugPrint('No se pudo asegurar remote_flags para ${device.id}: $e');
-        }
-        try {
-          final flags = await _remoteService.fetchRemoteFlags(device.id);
-          if (flags != null && flags.forgetDone) {
-            await _repository.finalizeRemoteForget(device.id);
-            continue;
-          }
-        } catch (e) {
-          debugPrint('No se pudieron leer remote_flags de ${device.id}: $e');
-        }
         final kind = await _classifyDevice(device);
         await _ensureDeviceType(device, kind);
         final typeLabel = _displayType(device.name, device.type, kind);
@@ -97,41 +82,16 @@ class _DevicesPageState extends State<DevicesPage> {
 
   Future<void> _forget(_Row row) async {
     try {
-      final outcome = await _repository.forgetAndReset(
-        deviceId: row.id,
-        ip: row.ip,
-      );
+      await _repository.forgetAndReset(deviceId: row.id, ip: row.ip);
       if (!mounted) return;
-      switch (outcome) {
-        case ForgetOutcome.local:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Dispositivo reiniciado por IP local. Enciende su AP en breves segundos.',
-              ),
-            ),
-          );
-          break;
-        case ForgetOutcome.remoteConfirmed:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Orden remota confirmada. El dispositivo entrara en modo AP en breve.',
-              ),
-            ),
-          );
-          break;
-        case ForgetOutcome.remoteQueued:
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Orden encolada en Supabase. Se ejecutara cuando el equipo se conecte; vuelve a intentar si no cambia a modo AP.',
-              ),
-            ),
-          );
-          await _runScan();
-          return;
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Dispositivo reiniciado por IP local. Enciende su AP en breves segundos.',
+          ),
+        ),
+      );
+      await _runScan();
     } on StateError catch (e) {
       debugPrint('StateError olvidando dispositivo ${row.id}: $e');
       if (mounted) {
@@ -141,24 +101,14 @@ class _DevicesPageState extends State<DevicesPage> {
       }
       return;
     } catch (e) {
-      debugPrint('Error eliminando dispositivo en Supabase: $e');
+      debugPrint('Error reiniciando dispositivo por IP: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No se pudo completar el reinicio remoto: $e'),
-          ),
+          SnackBar(content: Text('No se pudo completar el reinicio local: $e')),
         );
       }
       return;
     }
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Dispositivo olvidado.')));
-    }
-
-    _runScan();
   }
 
   Future<void> _toggleHomeActive(_Row row, bool active) async {
@@ -177,8 +127,8 @@ class _DevicesPageState extends State<DevicesPage> {
         SnackBar(
           content: Text(
             active
-                ? '${row.title} ahora estará activo en Inicio.'
-                : '${row.title} se ocultará de Inicio.',
+                ? '${row.title} ahora estarÃÂÃÂÃÂÃÂ! activo en Inicio.'
+                : '${row.title} se ocultarÃÂÃÂÃÂÃÂ! de Inicio.',
           ),
         ),
       );
@@ -269,8 +219,8 @@ class _DevicesPageState extends State<DevicesPage> {
                               ),
                               decoration: BoxDecoration(
                                 color: row.online
-                                    ? Colors.green.withOpacity(.12)
-                                    : cs.surfaceVariant,
+                                    ? Colors.green.withValues(alpha: .12)
+                                    : cs.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: row.online ? Colors.green : cs.outline,

@@ -7,7 +7,7 @@ Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash
 ## Requisitos previos
 - Flutter 3.22.x (Dart 3.9) con `flutter` y `dart` en el PATH.
 - Supabase CLI 1.135 o superior para aplicar el esquema `supabase/schema2.sql`.
-- Cuenta de Supabase (Proyecto + anon key) y acceso al panel.
+- Cuenta de Supabase (proyecto + anon key) y acceso al panel.
 - Proyecto de Firebase con Cloud Messaging habilitado.
 - API key de Gemini con acceso al modelo `gemini-2.5-flash-lite`.
 - Opcional: placas ESP32 (modo SoftAP) y red local para probar la provisión de dispositivos.
@@ -29,7 +29,7 @@ Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash
      SUPABASE_EMAIL_REDIRECT=https://tudominio/reset
      GEMINI_API_KEY=<clave-gemini>
      ```
-   - La app lanza `Environment.ensureLoaded()` al iniciar; si faltan valores se lanzará un `StateError`.
+   - La app ejecuta `Environment.ensureLoaded()` al iniciar; si faltan valores se lanza un `StateError`.
 
 3. **Configurar Supabase**
    ```bash
@@ -49,6 +49,16 @@ Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash
 5. **Assets y adaptadores locales**
    - Asegúrate de que los assets `.riv` y videos listados en `pubspec.yaml` estén presentes.
    - Hive registra manualmente los adapters (`AiCommentAdapter`, `SecurityEventAdapter`, `SecurityChatMessageAdapter`) en `main.dart`.
+
+---
+
+## Localización y traducciones
+
+- Las cadenas viven en `lib/core/localization/app_translations.dart` dentro de los mapas `es` y `en` usados por GetX (`GetMaterialApp.translations`).
+- **Edita siempre el archivo en UTF-8** (sin BOM). En VS Code agrega `"files.encoding": "utf8"` y `"files.autoGuessEncoding": false`. Evita copiar texto desde Word u otros editores que usen Windows-1252.
+- Si un carácter se ve como `Ã` o `�`, vuelve a guardar el archivo en UTF-8 y reescribe la cadena correcta (por ejemplo `Configuración`).
+- Para añadir un idioma duplica el mapa, traduce las cadenas y registra el locale (`supportedLocales` y `fallbackLocale`) en `main.dart`.
+- Después de modificar textos ejecuta `flutter run` y cambia el idioma desde **Configuración → Idioma** para validar que los textos se muestren correctamente.
 
 ---
 
@@ -72,7 +82,7 @@ Aplicación Flutter que combina cámaras y sensores IoT con IA (Gemini 2.5 Flash
 ## Flujo de provisión de dispositivos
 1. `ProvisioningService` busca redes SoftAP con prefijo `CASA-ESP_`.
 2. Tras conectar, envía credenciales Wi-Fi y claves de Supabase/Gemini.
-3. El firmware debe hacer `upsert_live_signal`, `device_take_remote_flags` y confirmar comandos.
+3. El firmware debe ejecutar `upsert_live_signal`, `device_take_remote_flags` y confirmar comandos.
 4. `LanDiscoveryService` (mDNS/Multicast) mantiene estado de dispositivos en Home.
 
 Consulta los sketches en `dispositivos/` para ejemplos ESP32.
@@ -104,7 +114,7 @@ Consulta los sketches en `dispositivos/` para ejemplos ESP32.
 ## Buenas prácticas y notas
 - Mantén los archivos `.env` y claves fuera del control de versiones públicos.
 - Los nuevos campos en `SecurityEvent` (`familyMemberId`, `familyMemberName`, `familyScheduleMatched`) requieren limpiar cajas Hive antiguas si existen entradas previas sin esos campos.
-- Para ambientes de prueba, puedes ejecutar `supabase start` y apuntar la app al servicio local (actualiza `.env` y certificados si procede).
+- Para ambientes de prueba puedes ejecutar `supabase start` y apuntar la app al servicio local (actualiza `.env` y certificados si aplica).
 - Verifica permisos de cámara, ubicación y Wi-Fi en Android antes de usar provisión y detección.
 
 ---
@@ -114,4 +124,3 @@ Consulta los sketches en `dispositivos/` para ejemplos ESP32.
 - [Supabase Docs](https://supabase.com/docs)
 - [Firebase Cloud Messaging](https://firebase.google.com/docs/cloud-messaging)
 - [Gemini API](https://ai.google.dev/)
-

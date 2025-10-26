@@ -1,7 +1,5 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -29,6 +27,7 @@ class SecurityMonitorService {
   final RemoteDeviceService _remoteService = RemoteDeviceService();
   final DetectionEngine _detectionEngine = DetectionEngine.instance;
   final GeminiVisionService _visionService = GeminiVisionService.instance;
+  final SupabaseClient _client = Supabase.instance.client;
 
   Timer? _cameraTimer;
   Timer? _sensorTimer;
@@ -38,9 +37,13 @@ class SecurityMonitorService {
   bool _sensorPolling = false;
 
   final Map<String, _PendingDetection> _pendingDetections = {};
+  bool get _isAuthenticated => _client.auth.currentUser != null;
 
   Future<void> start() async {
     if (_running) return;
+    if (!_ensureAuthenticated()) {
+      return;
+    }
     _running = true;
 
     unawaited(_pollCameras());
@@ -60,10 +63,14 @@ class SecurityMonitorService {
     _cameraTimer?.cancel();
     _sensorTimer?.cancel();
     _running = false;
+    _cameraPolling = false;
+    _sensorPolling = false;
+    _pendingDetections.clear();
   }
 
   Future<void> _pollCameras() async {
-    if (_cameraPolling) return;
+    if (!_running || _cameraPolling) return;
+    if (!_ensureAuthenticated()) return;
     _cameraPolling = true;
     try {
       final devices = await _deviceRepository.listDevices();
@@ -207,7 +214,8 @@ class SecurityMonitorService {
   }
 
   Future<void> _pollSensors() async {
-    if (_sensorPolling) return;
+    if (!_running || _sensorPolling) return;
+    if (!_ensureAuthenticated()) return;
     _sensorPolling = true;
     try {
       final devices = await _deviceRepository.listDevices();
@@ -222,13 +230,19 @@ class SecurityMonitorService {
     }
   }
 
+  bool _ensureAuthenticated() {
+    if (_isAuthenticated) return true;
+    debugPrint('SecurityMonitorService: no authenticated user, deteniendo monitoreo.');
+    stop();
+    return false;
+  }
+
   Future<void> _syncEventToSupabase(SecurityEvent event) async {
     try {
-      final client = Supabase.instance.client;
-      final userId = client.auth.currentUser?.id;
+      final userId = _client.auth.currentUser?.id;
       if (userId == null) return;
 
-      await client.from('security_events').insert({
+      await _client.from('security_events').insert({
         'user_id': userId,
         'device_id': event.deviceId,
         'device_name': event.deviceName,

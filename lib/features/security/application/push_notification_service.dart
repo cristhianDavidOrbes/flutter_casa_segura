@@ -62,6 +62,17 @@ class PushNotificationService {
   }
 
   Future<void> syncTokenWithUser() async {
+    if (!_initialized) {
+      try {
+        await init();
+      } catch (e, st) {
+        debugPrint(
+          'PushNotificationService sync retry failed: $e\n$st',
+        );
+        return;
+      }
+    }
+    if (!_initialized) return;
     final messaging = _ensureMessaging();
     final token = await messaging.getToken();
     if (token != null) {
@@ -70,6 +81,7 @@ class PushNotificationService {
   }
 
   Future<void> removeToken() async {
+    if (!_initialized) return;
     try {
       final client = Supabase.instance.client;
       final userId = client.auth.currentUser?.id;
@@ -134,7 +146,7 @@ class PushNotificationService {
       await client.from('user_push_tokens').upsert({
         'user_id': userId,
         'token': token,
-        'platform': describeEnum(defaultTargetPlatform),
+        'platform': defaultTargetPlatform.name,
         'updated_at': DateTime.now().toIso8601String(),
       });
       _cachedToken = token;

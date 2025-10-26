@@ -1,4 +1,3 @@
-// lib/services/provisioning_service.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -82,9 +81,8 @@ class ProvisioningService {
     if (!ok) return null;
 
     for (int i = 0; i < attempts; i++) {
-      // Nota: loadWifiList est? ?deprecated?, pero para identificar el SSID
-      // del equipo es la forma pr?ctica. Si quieres evitar el warning,
-      // se puede migrar a wifi_scan. Para ahora, funciona.
+      // Nota: WiFiForIoTPlugin no tiene reemplazo directo; se acepta advertencia.
+      // ignore: deprecated_member_use
       final list = await WiFiForIoTPlugin.loadWifiList();
       for (final w in list) {
         final ssid = (w.ssid ?? '').trim();
@@ -112,9 +110,9 @@ class ProvisioningService {
 
     for (int i = 0; i < attempts; i++) {
       try {
+        // ignore: deprecated_member_use
         final list = await WiFiForIoTPlugin.loadWifiList();
-        if (list != null) {
-          for (final network in list) {
+        for (final network in list) {
             final ssid = (network.ssid ?? '').trim();
             if (ssid.isEmpty) continue;
             if (treatAsPrefix &&
@@ -124,7 +122,6 @@ class ProvisioningService {
             if (!treatAsPrefix && ssid == target) {
               return true;
             }
-          }
         }
       } catch (_) {
         // Ignora y reintenta en la siguiente iteracion.
@@ -566,7 +563,7 @@ class ProvisioningService {
         interval: const Duration(milliseconds: 600),
       );
       if (connected) {
-        // Da un pequeño margen para que el sistema obtenga acceso real a Internet.
+        // Da un pequeÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ±o margen para que el sistema obtenga acceso real a Internet.
         await Future.delayed(const Duration(seconds: 2));
         return true;
       }
@@ -619,13 +616,16 @@ class ProvisioningService {
 
   String _describeError(Object error) {
     if (error is PostgrestException) {
-      final code = error.code != null ? ' (código ${error.code})' : '';
-      final msg = (error.message ?? '').trim();
-      if (msg.isNotEmpty) return '${error.message}$code';
-      return 'Supabase devolvió un error$code';
+      final codeSuffix = error.code != null ? ' (codigo ${error.code})' : '';
+      final message = error.message.trim();
+      return message.isNotEmpty
+          ? '$message$codeSuffix'
+          : 'Supabase devolvio un error$codeSuffix';
     }
     if (error is TimeoutException) {
-      return 'Tiempo de espera agotado (${error.duration?.inSeconds ?? 0}s)';
+      final duration = error.duration;
+      final seconds = duration != null ? duration.inSeconds : 0;
+      return 'Tiempo de espera agotado (${seconds}s)';
     }
     return error.toString();
   }
@@ -907,3 +907,5 @@ extension on Permission {
     }
   }
 }
+
+

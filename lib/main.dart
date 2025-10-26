@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -29,46 +33,79 @@ import 'features/ai/data/security_chat_store.dart';
 import 'core/localization/app_translations.dart';
 import 'firebase_options.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+bool _isClosedSocket(Object error) {
+  if (error is! SocketException) return false;
+  final message = error.message.toLowerCase();
+  if (message.contains('closed socket')) return true;
+  final osMessage = error.osError?.message.toLowerCase();
+  return osMessage?.contains('closed socket') ?? false;
+}
 
-  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
-  Environment.ensureLoaded();
+    FlutterError.onError = (details) {
+      if (_isClosedSocket(details.exception)) {
+        debugPrint('Socket cerrado (suprimido): ${details.exception}');
+        return;
+      }
+      FlutterError.presentError(details);
+    };
 
-  await GetStorage.init();
-  await Hive.initFlutter();
-  Hive.registerAdapter(AiCommentAdapter());
-  Hive.registerAdapter(SecurityEventAdapter());
-  Hive.registerAdapter(SecurityChatMessageAdapter());
-  await AiCommentStore.init();
-  await SecurityEventStore.init();
-  await SecurityChatStore.init();
-  await NotificationService.instance.init();
+    ui.PlatformDispatcher.instance.onError = (error, stackTrace) {
+      if (_isClosedSocket(error)) {
+        debugPrint('Socket cerrado desde PlatformDispatcher: $error');
+        return true;
+      }
+      debugPrint('PlatformDispatcher error: $error`n$stackTrace');
+      return false;
+    };
 
-  await Supabase.initialize(
-    url: Environment.supabaseUrl,
-    anonKey: Environment.supabaseAnonKey,
-  );
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  final pushService = Get.put(PushNotificationService(), permanent: true);
-  try {
-    await pushService.init();
-  } catch (e, st) {
-    debugPrint('PushNotificationService init failed: $e\n$st');
-    rethrow;
-  }
+    await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  AuthBinding.ensureInitialized();
+    await dotenv.load(fileName: '.env');
+    Environment.ensureLoaded();
 
-  final supabase = Supabase.instance.client;
-  final loggedIn = supabase.auth.currentSession != null;
+    await GetStorage.init();
+    await Hive.initFlutter();
+    Hive.registerAdapter(AiCommentAdapter());
+    Hive.registerAdapter(SecurityEventAdapter());
+    Hive.registerAdapter(SecurityChatMessageAdapter());
+    await AiCommentStore.init();
+    await SecurityEventStore.init();
+    await SecurityChatStore.init();
+    await NotificationService.instance.init();
 
-  runApp(MyApp(loggedIn: loggedIn));
+    await Supabase.initialize(
+      url: Environment.supabaseUrl,
+      anonKey: Environment.supabaseAnonKey,
+    );
+
+    final pushService = Get.put(PushNotificationService(), permanent: true);
+    try {
+      await pushService.init();
+    } catch (e, st) {
+      debugPrint('PushNotificationService init failed: $e`n$st');
+    }
+
+    AuthBinding.ensureInitialized();
+
+    final supabase = Supabase.instance.client;
+    final loggedIn = supabase.auth.currentSession != null;
+
+    runApp(MyApp(loggedIn: loggedIn));
+  }, (error, stackTrace) {
+    if (_isClosedSocket(error)) {
+      debugPrint('Socket cerrado capturado por zona: $error');
+      return;
+    }
+    debugPrint('Error no capturado por zona: $error`n$stackTrace');
+  });
 }
 
 class MyApp extends StatefulWidget {

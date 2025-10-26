@@ -706,9 +706,7 @@ void supabasePollCommands() {
   bool executed = false;
   String error = "";
   if (commandJson.indexOf("\"factory_reset\"") >= 0) {
-    executed = true;
-    pendingSoftAp = true;
-    Serial.println("[SUPABASE] factory_reset recibido");
+    error = "factory_reset disabled";
   } else {
     error = "unsupported action";
   }
@@ -749,11 +747,7 @@ void supabasePollRemoteFlags() {
   }
 
   if (jsonFlagTrue(body, "forget_requested")) {
-    Serial.println("[SUPABASE] reinicio remoto solicitado via flags");
-    supabaseMarkRemoteForgetDone();
-    delay(150);
-    performRemoteReset();
-    return;
+    Serial.println("[SUPABASE] remote forget flag ignored (disabled).");
   }
 }
 

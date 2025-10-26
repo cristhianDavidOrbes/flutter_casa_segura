@@ -47,23 +47,28 @@ class LanguageSelectorSheet extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 16),
-            Obx(
-              () => Column(
+            Obx(() {
+              final selected = localeController.locale.value;
+              return Column(
                 children: [
                   for (final locale in locales)
-                    RadioListTile<Locale>(
-                      value: locale,
-                      groupValue: localeController.locale.value,
-                      onChanged: (value) {
-                        if (value != null) {
-                          localeController.setLocale(value);
-                        }
-                      },
+                    ListTile(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       title: Text(_labelForLocale(locale).tr),
+                      trailing: Icon(
+                        selected == locale
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        color: selected == locale
+                            ? colorScheme.primary
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                      onTap: () => localeController.setLocale(locale),
                     ),
                 ],
-              ),
-            ),
+              );
+            }),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () => Get.back(),
