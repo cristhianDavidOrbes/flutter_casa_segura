@@ -8,7 +8,7 @@ Antes de continuar con mas desarrollo revisa y ejecuta estos pasos en orden (inc
    - Estado: OK. Los `watch*` ahora delegan en `_pollingStream` con peticiones REST en `lib/services/remote_device_service.dart:130-240`, evitando Realtime de Supabase.
    - Mantener: si se introducen nuevos flujos, replicar el patron de polling con backoff.
 2. **Actuadores remotos**  
-   - Estado: PENDIENTE. Aunque la app bloquea `factory_reset` remoto (`lib/services/remote_device_service.dart:202-215`), el firmware sigue registrando el actuador `system_control` (`dispositivos/camara_computacion_ubicua.ino:627-668`). Falta decidir si se elimina ese registro o se documenta la excepcion.
+   - Estado: OK. `RemoteDeviceService.enqueueFactoryReset` lanza `StateError` (`lib/services/remote_device_service.dart:202-210`) y los firmwares responden `"factory_reset disabled"` aun cuando mantienen registrado `system_control` para sincronizarse con Supabase (`dispositivos/camara_computacion_ubicua.ino:627-738`, `dispositivos/detector_softap_provision.ino:590-608`, `dispositivos/servo_softap_provision.ino:804-812`).
    - Mantener: olvido de dispositivos solo via red local (`lib/services/device_control_service.dart:11`).
 3. **Capturas de camara**  
    - Estado: OK. Los ESP32-CAM usan `SNAPSHOT_INTERVAL_MS = 4000` (`dispositivos/camara_computacion_ubicua.ino:40`), dentro del intervalo seguro.
