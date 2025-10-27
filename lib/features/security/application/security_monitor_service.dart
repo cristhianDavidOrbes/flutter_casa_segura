@@ -4,10 +4,12 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:flutter_seguridad_en_casa/core/config/environment.dart';
 import 'package:flutter_seguridad_en_casa/features/security/application/detection_engine.dart';
 import 'package:flutter_seguridad_en_casa/features/security/application/gemini_vision_service.dart';
 import 'package:flutter_seguridad_en_casa/features/family/application/family_presence_service.dart';
@@ -29,15 +31,30 @@ class SecurityMonitorService {
   final DetectionEngine _detectionEngine = DetectionEngine.instance;
   final GeminiVisionService _visionService = GeminiVisionService.instance;
   final SupabaseClient _client = Supabase.instance.client;
+  final HttpClient _baseHttpClient = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 12);
+  late final http.Client _httpClient = IOClient(_baseHttpClient);
 
   Timer? _cameraTimer;
   Timer? _sensorTimer;
+  bool _isForeground = true;
 
+  static const Duration _foregroundPollInterval = Duration(seconds: 5);
+  static const Duration _backgroundPollInterval = Duration(seconds: 18);
   bool _running = false;
   bool _cameraPolling = false;
   bool _sensorPolling = false;
 
   final Map<String, _PendingDetection> _pendingDetections = {};
+  final Map<String, _SignalCache> _signalCache = {};
+  final Map<String, String> _deviceSnapshotUrls = {};
+  final Map<String, DateTime> _snapshotCooldown = {};
+  final Map<String, _SignedUrlCache> _signedUrlCache = {};
+  List<DeviceRecord> _cachedDevices = <DeviceRecord>[];
+  DateTime _lastDeviceRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+  static const Duration _deviceRefreshInterval = Duration(seconds: 30);
+  static const Duration _signalCacheTtl = Duration(seconds: 12);
+  static const Duration _snapshotRetryDelay = Duration(seconds: 30);
   bool get _isAuthenticated => _client.auth.currentUser != null;
 
   Future<void> start() async {
@@ -47,26 +64,72 @@ class SecurityMonitorService {
     }
     _running = true;
 
-    unawaited(_pollCameras());
-    unawaited(_pollSensors());
+    _scheduleCameraTick(immediate: true);
+    _scheduleSensorTick(immediate: true);
+  }
 
-    _cameraTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _pollCameras(),
-    );
-    _sensorTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => _pollSensors(),
-    );
+  Duration get _cameraInterval =>
+      _isForeground ? _foregroundPollInterval : _backgroundPollInterval;
+
+  Duration get _sensorInterval =>
+      _isForeground ? _foregroundPollInterval : _backgroundPollInterval;
+
+  void _scheduleCameraTick({bool immediate = false}) {
+    _cameraTimer?.cancel();
+    if (!_running) return;
+    final delay = immediate ? Duration.zero : _cameraInterval;
+    _cameraTimer = Timer(delay, () async {
+      _cameraTimer = null;
+      await _pollCameras();
+      if (_running) {
+        _scheduleCameraTick();
+      }
+    });
+  }
+
+  void _scheduleSensorTick({bool immediate = false}) {
+    _sensorTimer?.cancel();
+    if (!_running) return;
+    final delay = immediate ? Duration.zero : _sensorInterval;
+    _sensorTimer = Timer(delay, () async {
+      _sensorTimer = null;
+      await _pollSensors();
+      if (_running) {
+        _scheduleSensorTick();
+      }
+    });
   }
 
   void stop() {
     _cameraTimer?.cancel();
     _sensorTimer?.cancel();
+    _cameraTimer = null;
+    _sensorTimer = null;
     _running = false;
     _cameraPolling = false;
     _sensorPolling = false;
     _pendingDetections.clear();
+    _signalCache.clear();
+    _deviceSnapshotUrls.clear();
+    _snapshotCooldown.clear();
+    _signedUrlCache.clear();
+    _signalCache.clear();
+    _deviceSnapshotUrls.clear();
+    _cachedDevices = <DeviceRecord>[];
+    _lastDeviceRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  void updateForegroundStatus(bool isForeground) {
+    final nextState = isForeground;
+    if (_isForeground == nextState) return;
+    _isForeground = nextState;
+    if (!_running) return;
+    debugPrint(
+      'SecurityMonitorService: ajustando intervalo a '
+      '${nextState ? _foregroundPollInterval.inSeconds : _backgroundPollInterval.inSeconds}s',
+    );
+    _scheduleCameraTick(immediate: nextState);
+    _scheduleSensorTick(immediate: nextState);
   }
 
   Future<void> _pollCameras() async {
@@ -74,7 +137,7 @@ class SecurityMonitorService {
     if (!_ensureAuthenticated()) return;
     _cameraPolling = true;
     try {
-      final devices = await _deviceRepository.listDevices();
+      final devices = await _getAvailableDevices();
       for (final device in devices) {
         if (!device.type.toLowerCase().contains('cam')) continue;
         await _processCameraDevice(device.id, device.name);
@@ -117,7 +180,7 @@ class SecurityMonitorService {
       await NotificationService.instance.showDetectionStage(
         deviceName: deviceName,
         severity: DetectionSeverity.green,
-        message: 'Se detectó movimiento puntual en $deviceName.',
+        message: 'Se detecto movimiento puntual en $deviceName.',
       );
       return;
     }
@@ -131,7 +194,7 @@ class SecurityMonitorService {
         await NotificationService.instance.showDetectionStage(
           deviceName: deviceName,
           severity: DetectionSeverity.yellow,
-          message: 'La presencia persiste en $deviceName. Verifica la cámara.',
+          message: 'La presencia persiste en $deviceName. Verifica la camara.',
         );
         break;
       case _DetectionStage.yellow:
@@ -145,7 +208,7 @@ class SecurityMonitorService {
         );
         break;
       case _DetectionStage.red:
-        // Ya se procesó la alerta crítica; esperar a que desaparezca.
+        // Ya se proceso la alerta critica; esperar a que desaparezca.
         break;
     }
   }
@@ -181,7 +244,7 @@ class SecurityMonitorService {
               'Describe detalladamente lo que se observa en esta captura del dispositivo "$deviceName". '
               'Enfocate en caracteristicas relevantes para seguridad.',
         ) ??
-        'El dispositivo "$deviceName" detectó ${detection.label.toLowerCase()} '
+        'El dispositivo "$deviceName" detecto ${detection.label.toLowerCase()} '
             '(${(detection.confidence * 100).toStringAsFixed(1)}% confianza).';
 
     final scheduleMessage = familyMatch != null && scheduleWindow != null
@@ -263,7 +326,7 @@ class SecurityMonitorService {
     if (!_ensureAuthenticated()) return;
     _sensorPolling = true;
     try {
-      final devices = await _deviceRepository.listDevices();
+      final devices = await _getAvailableDevices();
       for (final device in devices) {
         if (device.type.toLowerCase().contains('cam')) continue;
         // TODO: integrar lectura real de sensores.
@@ -321,30 +384,61 @@ class SecurityMonitorService {
   }
 
   Future<_SnapshotResult?> _downloadCameraSnapshot(String deviceId) async {
+    final cachedRaw = _deviceSnapshotUrls[deviceId];
+    final cachedUrl = await _resolveSnapshotUrl(cachedRaw);
+    final directResult = await _tryDownloadSnapshot(deviceId, cachedUrl);
+    if (directResult != null) {
+      return directResult;
+    }
+
     try {
-      final signals = await _remoteService.fetchLiveSignals(deviceId);
+      final signals = await _getLiveSignals(deviceId);
       for (final signal in signals) {
-        final snapshot = signal.snapshotPath ?? signal.extra['snapshot'];
-        final stream = signal.extra['stream'];
-        String? url;
-        if (snapshot is String && snapshot.trim().isNotEmpty) {
-          url = snapshot.trim();
-        } else if (stream is String && stream.trim().isNotEmpty) {
-          url = stream.trim();
-        }
-        if (url == null) continue;
-        final response = await http
-            .get(Uri.parse(url))
-            .timeout(const Duration(seconds: 10));
-        if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-          _pendingDetections[deviceId]?.snapshotUrl = url;
-          return _SnapshotResult(response.bodyBytes, url);
+        final candidates = _candidateSnapshotUrls(signal);
+        for (final candidate in candidates) {
+          final resolved = await _resolveSnapshotUrl(candidate);
+          final result = await _tryDownloadSnapshot(deviceId, resolved);
+          if (result != null) {
+            _deviceSnapshotUrls[deviceId] = candidate;
+            return result;
+          }
         }
       }
     } catch (e) {
       debugPrint('Snapshot download error for $deviceId: $e');
     }
     return null;
+  }
+
+  bool _shouldSkipUrl(String url) {
+    final lastFailure = _snapshotCooldown[url];
+    if (lastFailure == null) return false;
+    if (DateTime.now().difference(lastFailure) >= _snapshotRetryDelay) {
+      _snapshotCooldown.remove(url);
+      return false;
+    }
+    return true;
+  }
+
+  List<String> _candidateSnapshotUrls(RemoteLiveSignal signal) {
+    final urls = <String>{};
+    void addCandidate(dynamic raw) {
+      if (raw is! String) return;
+      final normalized = _normalizeMediaUrl(raw);
+      if (normalized != null &&
+          normalized.isNotEmpty &&
+          !_isLikelyLocalUrl(normalized)) {
+        urls.add(normalized);
+      }
+    }
+
+    addCandidate(signal.extra['device_snapshot']);
+    addCandidate(signal.extra['snapshot_url']);
+    addCandidate(signal.extra['snapshot_signed']);
+    addCandidate(signal.snapshotPath);
+    addCandidate(signal.extra['snapshot']);
+
+    return urls.toList(growable: false);
   }
 
   Future<String?> _storeTempEvidence(Uint8List bytes, String deviceId) async {
@@ -389,6 +483,192 @@ class SecurityMonitorService {
     await file.writeAsBytes(bytes, flush: true);
     return file.path;
   }
+
+  Future<List<DeviceRecord>> _getAvailableDevices() async {
+    final now = DateTime.now();
+    final shouldRefresh =
+        _cachedDevices.isEmpty ||
+        now.difference(_lastDeviceRefresh) >= _deviceRefreshInterval;
+    if (!shouldRefresh) {
+      return _cachedDevices;
+    }
+    try {
+      _cachedDevices = await _deviceRepository.listDevices();
+      _lastDeviceRefresh = now;
+    } catch (e, st) {
+      debugPrint('Device fetch error: $e\n$st');
+      if (_cachedDevices.isEmpty) {
+        return const <DeviceRecord>[];
+      }
+    }
+    return _cachedDevices;
+  }
+
+  String? _normalizeMediaUrl(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final base = Environment.supabaseUrl.trim();
+    if (base.isEmpty) return null;
+    final normalizedBase = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    if (trimmed.startsWith('/')) {
+      return '$normalizedBase$trimmed';
+    }
+    return '$normalizedBase/$trimmed';
+  }
+
+  bool _isLikelyLocalUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    if (uri.scheme != 'http') return false;
+    final host = uri.host;
+    if (host.isEmpty) return false;
+    if (host == 'localhost' || host == '127.0.0.1') return true;
+    if (host.endsWith('.local')) return true;
+    final segments = host.split('.');
+    if (segments.length == 4 &&
+        segments.every((s) => int.tryParse(s) != null)) {
+      final octets = segments.map((s) => int.parse(s)).toList(growable: false);
+      final first = octets[0];
+      final second = octets[1];
+      if (first == 10) return true;
+      if (first == 192 && second == 168) return true;
+      if (first == 172 && second >= 16 && second <= 31) return true;
+      if (first == 169 && second == 254) return true;
+    }
+    return false;
+  }
+
+  Future<String?> _resolveSnapshotUrl(String? raw) async {
+    final normalized = _normalizeMediaUrl(raw);
+    if (normalized == null) return null;
+    if (normalized.startsWith('http://')) return normalized;
+
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) return normalized;
+    if (uri.pathSegments.contains('sign')) return normalized;
+    if (uri.pathSegments.contains('public')) return normalized;
+    if (!_isSupabaseHost(uri)) return normalized;
+
+    return await _signedUrlFor(uri, normalized);
+  }
+
+  bool _isSupabaseHost(Uri uri) {
+    final base = Environment.supabaseUrl.trim();
+    if (base.isEmpty) return false;
+    final baseUri = Uri.tryParse(base);
+    if (baseUri == null || baseUri.host.isEmpty) return false;
+    return uri.host == baseUri.host;
+  }
+
+  Future<String?> _signedUrlFor(Uri uri, String fallback) async {
+    final segments = uri.pathSegments;
+    final objectIndex = segments.indexOf('object');
+    if (objectIndex < 0) return fallback;
+    if (objectIndex + 1 >= segments.length) return fallback;
+
+    final bucket = segments[objectIndex + 1];
+    final objectPathSegments = segments.skip(objectIndex + 2);
+    if (objectPathSegments.isEmpty) return fallback;
+
+    final objectPath = objectPathSegments.join('/');
+    final cacheKey = '$bucket/$objectPath';
+    final cache = _signedUrlCache[cacheKey];
+    final now = DateTime.now();
+    if (cache != null && now.isBefore(cache.expiresAt)) {
+      return cache.url;
+    }
+
+    const signedTtlSeconds = 300;
+    try {
+      final signed = await Supabase.instance.client.storage
+          .from(bucket)
+          .createSignedUrl(objectPath, signedTtlSeconds);
+      final cacheBuster = now.millisecondsSinceEpoch;
+      final effective = signed.contains('?')
+          ? '$signed&cb=$cacheBuster'
+          : '$signed?cb=$cacheBuster';
+      final expires = now.add(const Duration(seconds: signedTtlSeconds - 20));
+      _signedUrlCache[cacheKey] = _SignedUrlCache(
+        url: effective,
+        expiresAt: expires,
+      );
+      return effective;
+    } catch (e, st) {
+      debugPrint('Signed URL error for $bucket/$objectPath: $e\n$st');
+      if (cache != null) {
+        // Reutiliza la URL anterior aunque esté cerca del vencimiento.
+        return cache.url;
+      }
+      return null;
+    }
+  }
+
+  Future<_SnapshotResult?> _tryDownloadSnapshot(
+    String deviceId,
+    String? normalizedUrl,
+  ) async {
+    if (normalizedUrl == null || normalizedUrl.isEmpty) return null;
+    if (_shouldSkipUrl(normalizedUrl)) return null;
+    try {
+      final uri = Uri.parse(normalizedUrl);
+      final timeout = uri.scheme == 'http'
+          ? const Duration(seconds: 4)
+          : const Duration(seconds: 10);
+      final response = await _httpClient.get(uri).timeout(timeout);
+      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        _pendingDetections[deviceId]?.snapshotUrl = normalizedUrl;
+        _snapshotCooldown.remove(normalizedUrl);
+        return _SnapshotResult(response.bodyBytes, normalizedUrl);
+      }
+    } catch (e) {
+      debugPrint('Direct snapshot fetch error for $deviceId: $e');
+      _snapshotCooldown[normalizedUrl] = DateTime.now();
+    }
+    return null;
+  }
+
+  Future<List<RemoteLiveSignal>> _getLiveSignals(String deviceId) async {
+    final now = DateTime.now();
+    final cache = _signalCache[deviceId];
+    if (cache != null && now.difference(cache.timestamp) < _signalCacheTtl) {
+      return cache.signals;
+    }
+    try {
+      final signals = await _remoteService.fetchLiveSignals(deviceId);
+      _signalCache[deviceId] = _SignalCache(signals: signals, timestamp: now);
+      return signals;
+    } catch (e, st) {
+      debugPrint('Live signals fetch error for $deviceId: $e\n$st');
+      _signalCache[deviceId] = _SignalCache(
+        signals: const <RemoteLiveSignal>[],
+        timestamp: now,
+      );
+      return const <RemoteLiveSignal>[];
+    }
+  }
+
+  DeviceRecord? _deviceRecord(String deviceId) {
+    final lower = deviceId.trim().toLowerCase();
+    if (lower.isEmpty) return null;
+    for (final record in _cachedDevices) {
+      if (record.id.trim().toLowerCase() == lower) {
+        return record;
+      }
+    }
+    return null;
+  }
+}
+
+class _SignedUrlCache {
+  _SignedUrlCache({required this.url, required this.expiresAt});
+
+  final String url;
+  final DateTime expiresAt;
 }
 
 class _PendingDetection {
@@ -417,3 +697,10 @@ class _SnapshotResult {
 }
 
 enum _DetectionStage { green, yellow, red }
+
+class _SignalCache {
+  _SignalCache({required this.signals, required this.timestamp});
+
+  final List<RemoteLiveSignal> signals;
+  final DateTime timestamp;
+}

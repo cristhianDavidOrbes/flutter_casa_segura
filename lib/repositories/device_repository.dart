@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../services/device_control_service.dart';
@@ -48,6 +51,8 @@ class DeviceRepository {
   static final DeviceRepository instance = DeviceRepository._();
 
   final SupabaseClient _client = Supabase.instance.client;
+  static const Duration _baseRetryDelay = Duration(milliseconds: 250);
+  static const Duration _maxRetryDelay = Duration(seconds: 3);
 
   String get _userId {
     final userId = _client.auth.currentUser?.id;
@@ -59,11 +64,14 @@ class DeviceRepository {
 
   Future<List<DeviceRecord>> listDevices() async {
     final userId = _userId;
-    final response = await _client
-        .from('devices')
-        .select('id, name, type, ip, added_at, last_seen_at')
-        .eq('user_id', userId)
-        .order('added_at', ascending: true);
+    final response = await _safeRequest(
+      () => _client
+          .from('devices')
+          .select('id, name, type, ip, added_at, last_seen_at')
+          .eq('user_id', userId)
+          .order('added_at', ascending: true),
+      debugLabel: 'devices/list',
+    );
 
     return (response as List<dynamic>)
         .map((item) => DeviceRecord.fromMap(item as Map<String, dynamic>))
@@ -77,23 +85,29 @@ class DeviceRepository {
   }) async {
     final userId = _userId;
     final now = (seenAt ?? DateTime.now()).toUtc().toIso8601String();
-    await _client
-        .from('devices')
-        .update({
-          'last_seen_at': now,
-          if (ip != null && ip.isNotEmpty) 'ip': ip,
-        })
-        .match({'user_id': userId, 'id': deviceId});
+    await _safeRequest(
+      () => _client
+          .from('devices')
+          .update({
+            'last_seen_at': now,
+            if (ip != null && ip.isNotEmpty) 'ip': ip,
+          })
+          .match({'user_id': userId, 'id': deviceId}),
+      debugLabel: 'devices/update_presence/$deviceId',
+    );
     final ms = (seenAt ?? DateTime.now()).millisecondsSinceEpoch;
     await AppDb.instance.touchDeviceSeen(deviceId, ip: ip, whenMs: ms);
   }
 
   Future<void> forget(String deviceId) async {
     final userId = _userId;
-    await _client.from('devices').delete().match({
-      'user_id': userId,
-      'id': deviceId,
-    });
+    await _safeRequest(
+      () => _client.from('devices').delete().match({
+        'user_id': userId,
+        'id': deviceId,
+      }),
+      debugLabel: 'devices/forget/$deviceId',
+    );
     await AppDb.instance.deleteDeviceByDeviceId(deviceId);
   }
 
@@ -101,10 +115,13 @@ class DeviceRepository {
     final userId = _userId;
     final normalized = type.trim().toLowerCase();
     try {
-      await _client.from('devices').update({'type': normalized}).match({
-        'user_id': userId,
-        'id': deviceId,
-      });
+      await _safeRequest(
+        () => _client.from('devices').update({'type': normalized}).match({
+          'user_id': userId,
+          'id': deviceId,
+        }),
+        debugLabel: 'devices/update_type/$deviceId',
+      );
     } catch (e) {
       debugPrint('Error actualizando tipo de $deviceId: $e');
     }
@@ -136,5 +153,61 @@ class DeviceRepository {
     }
 
     await forget(deviceId);
+  }
+
+  Duration _computeRetryDelay(int attempt) {
+    final int raw =
+        _baseRetryDelay.inMilliseconds * math.pow(2, attempt - 1).toInt();
+    final int millis = raw
+        .clamp(_baseRetryDelay.inMilliseconds, _maxRetryDelay.inMilliseconds)
+        .toInt();
+    return Duration(milliseconds: millis);
+  }
+
+  Future<T> _safeRequest<T>(
+    Future<T> Function() action, {
+    String? debugLabel,
+    int maxAttempts = 3,
+  }) async {
+    Object? lastError;
+    StackTrace? lastStack;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStack = stackTrace;
+        final bool transient = _isTransientSupabaseError(error);
+        if (!transient || attempt == maxAttempts) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        final delay = _computeRetryDelay(attempt);
+        final tag = debugLabel != null ? ' [$debugLabel]' : '';
+        debugPrint(
+          'Supabase request$tag fallo (intento $attempt/$maxAttempts): $error. '
+          'Reintentando en ${delay.inMilliseconds}ms.',
+        );
+        await Future.delayed(delay);
+      }
+    }
+    Error.throwWithStackTrace(
+      lastError ?? StateError('Supabase request failed'),
+      lastStack ?? StackTrace.current,
+    );
+  }
+
+  bool _isTransientSupabaseError(Object error) {
+    if (error is TimeoutException) return true;
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is http.ClientException) return true;
+    if (error is PostgrestException) return true;
+
+    final message = error.toString().toLowerCase();
+    if (message.contains('broken pipe')) return true;
+    if (message.contains('connection reset')) return true;
+    if (message.contains('connection terminated during handshake')) return true;
+    if (message.contains('connection closed')) return true;
+    return false;
   }
 }

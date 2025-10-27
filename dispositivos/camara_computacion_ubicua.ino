@@ -37,7 +37,7 @@ String deviceName = "casa-esp-cam";
 String hostLabel  = "casa-esp-cam";
 
 static const char* SNAPSHOT_BUCKET = "camera_frames";
-static const uint32_t SNAPSHOT_INTERVAL_MS = 10000;
+static const uint32_t SNAPSHOT_INTERVAL_MS = 4000;
 
 struct WifiCreds { String ssid, pass, alias; };
 struct SupabaseCreds { String url, anonKey, deviceId, deviceKey; };
@@ -442,6 +442,10 @@ String snapshotObjectPath() {
   return "/storage/v1/object/" + String(SNAPSHOT_BUCKET) + "/" + snapshotObjectKey();
 }
 
+String snapshotPublicPath() {
+  return "/storage/v1/object/public/" + String(SNAPSHOT_BUCKET) + "/" + snapshotObjectKey();
+}
+
 bool httpPostJson(const String& path,
                   const String& payload,
                   int& outCode,
@@ -479,6 +483,24 @@ bool httpPostJson(const String& path,
 bool supabasePublishSnapshotMeta(const String& objectPath, size_t byteCount) {
   String extra = "{";
   extra += "\"snapshot\":\"" + jsonEscape(objectPath) + "\",";
+
+  String supaBase = supaCreds.url;
+  if (supaBase.endsWith("/")) {
+    supaBase.remove(supaBase.length() - 1);
+  }
+  if (supaBase.length()) {
+    String signedSnapshot = supaBase + objectPath;
+    String publicSnapshot = supaBase + snapshotPublicPath();
+    extra += "\"snapshot_signed\":\"" + jsonEscape(signedSnapshot) + "\",";
+    extra += "\"snapshot_url\":\"" + jsonEscape(publicSnapshot) + "\",";
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    String deviceBase = "http://" + WiFi.localIP().toString();
+    extra += "\"device_snapshot\":\"" + jsonEscape(deviceBase + "/photo") + "\",";
+    extra += "\"device_stream\":\"" + jsonEscape(deviceBase + "/stream") + "\",";
+  }
+
   extra += "\"bytes\":" + String(byteCount);
   extra += "}";
 
