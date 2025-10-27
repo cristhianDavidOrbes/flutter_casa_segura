@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/device_remote_flags.dart';
@@ -125,44 +128,42 @@ class RemoteDeviceService {
   final SupabaseClient _client;
 
   Stream<List<RemoteLiveSignal>> watchLiveSignals(String deviceId) {
-    return _retryingStream<List<RemoteLiveSignal>>(
-      () => _client
-          .from('live_signals')
-          .stream(primaryKey: ['id'])
-          .eq('device_id', deviceId)
-          .map(
-            (rows) => rows.map((row) => RemoteLiveSignal.fromMap(row)).toList(),
-          ),
+    return _pollingStream<List<RemoteLiveSignal>>(
+      () async =>
+          List<RemoteLiveSignal>.unmodifiable(await fetchLiveSignals(deviceId)),
+      interval: const Duration(seconds: 8),
+      maxInterval: const Duration(seconds: 60),
+      fallback: const <RemoteLiveSignal>[],
+      label: 'live_signals/$deviceId',
     );
   }
 
   Stream<List<RemoteActuator>> watchActuators(String deviceId) {
-    return _retryingStream<List<RemoteActuator>>(
-      () => _client
-          .from('actuators')
-          .stream(primaryKey: ['id'])
-          .eq('device_id', deviceId)
-          .map(
-            (rows) => rows.map((row) => RemoteActuator.fromMap(row)).toList(),
-          ),
+    return _pollingStream<List<RemoteActuator>>(
+      () async =>
+          List<RemoteActuator>.unmodifiable(await fetchActuators(deviceId)),
+      interval: const Duration(seconds: 12),
+      maxInterval: const Duration(seconds: 60),
+      fallback: const <RemoteActuator>[],
+      label: 'actuators/$deviceId',
     );
   }
 
   Future<List<RemoteActuator>> fetchActuators(String deviceId) async {
-    final response = await _client
-        .from('actuators')
-        .select()
-        .eq('device_id', deviceId);
+    final response = await _safeRequest(
+      () => _client.from('actuators').select().eq('device_id', deviceId),
+      debugLabel: 'actuators/$deviceId',
+    );
     return (response as List<dynamic>)
         .map((row) => RemoteActuator.fromMap(row as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<RemoteLiveSignal>> fetchLiveSignals(String deviceId) async {
-    final response = await _client
-        .from('live_signals')
-        .select()
-        .eq('device_id', deviceId);
+    final response = await _safeRequest(
+      () => _client.from('live_signals').select().eq('device_id', deviceId),
+      debugLabel: 'live_signals/$deviceId',
+    );
     return (response as List<dynamic>)
         .map((row) => RemoteLiveSignal.fromMap(row as Map<String, dynamic>))
         .toList();
@@ -172,11 +173,14 @@ class RemoteDeviceService {
     required String actuatorId,
     required Map<String, dynamic> command,
   }) async {
-    final response = await _client
-        .from('actuator_commands')
-        .insert({'actuator_id': actuatorId, 'command': command})
-        .select('id, actuator_id')
-        .limit(1);
+    final response = await _safeRequest(
+      () => _client
+          .from('actuator_commands')
+          .insert({'actuator_id': actuatorId, 'command': command})
+          .select('id, actuator_id')
+          .limit(1),
+      debugLabel: 'enqueue_command/$actuatorId',
+    );
 
     final rows = response as List<dynamic>;
     if (rows.isEmpty) {
@@ -196,28 +200,9 @@ class RemoteDeviceService {
   }
 
   Future<RemoteCommandHandle> enqueueFactoryReset(String deviceId) async {
-    var actuators = await fetchActuators(deviceId);
-    RemoteActuator? target = _pickSystemActuator(actuators);
-    if (target == null) {
-      await _ensureSystemActuator(deviceId);
-      actuators = await fetchActuators(deviceId);
-      target = _pickSystemActuator(actuators);
-    }
-    target ??= actuators.isNotEmpty ? actuators.first : null;
-    if (target == null) {
-      throw StateError(
-        'No se encontraron actuadores para el dispositivo $deviceId',
-      );
-    }
-
-    return enqueueCommand(
-      actuatorId: target.id,
-      command: {
-        'action': 'factory_reset',
-        'payload': const {},
-        'origin': 'app_forget',
-        'issued_at': DateTime.now().toUtc().toIso8601String(),
-      },
+    throw StateError(
+      'El restablecimiento remoto esta deshabilitado temporalmente. '
+      'Usa la opcion de olvido local desde la misma red del dispositivo.',
     );
   }
 
@@ -251,98 +236,86 @@ class RemoteDeviceService {
   }
 
   Stream<DeviceRemoteFlags?> watchRemoteFlags(String deviceId) {
-    return _retryingStream<DeviceRemoteFlags?>(
-      () => _client
-          .from('device_remote_flags')
-          .stream(primaryKey: ['device_id'])
-          .eq('device_id', deviceId)
-          .map((rows) {
-            if (rows.isEmpty) return null;
-            final row = rows.first;
-            final map = _normalizeMap(row);
-            return DeviceRemoteFlags.fromMap(map);
-          }),
+    return _pollingStream<DeviceRemoteFlags?>(
+      () => fetchRemoteFlags(deviceId),
+      interval: const Duration(seconds: 12),
+      maxInterval: const Duration(seconds: 90),
+      label: 'remote_flags/$deviceId',
     );
   }
 
   Future<DeviceRemoteFlags?> fetchRemoteFlags(String deviceId) async {
-    final response = await _client
-        .from('device_remote_flags')
-        .select()
-        .eq('device_id', deviceId)
-        .maybeSingle();
+    final response = await _safeRequest(
+      () => _client
+          .from('device_remote_flags')
+          .select()
+          .eq('device_id', deviceId)
+          .maybeSingle(),
+      debugLabel: 'remote_flags/$deviceId',
+    );
     if (response == null) return null;
     return DeviceRemoteFlags.fromMap(_normalizeMap(response));
   }
 
+  Future<RemoteDevicePresence?> fetchDevicePresence(String deviceId) async {
+    final response = await _safeRequest(
+      () => _client
+          .from('devices')
+          .select('id, name, type, ip, last_seen_at')
+          .eq('id', deviceId)
+          .maybeSingle(),
+      debugLabel: 'devices/$deviceId',
+    );
+    if (response == null) return null;
+    return RemoteDevicePresence.fromMap(_normalizeMap(response));
+  }
+
   Future<void> ensureRemoteFlags(String deviceId) async {
-    await _client
-        .from('device_remote_flags')
-        .upsert({'device_id': deviceId}, onConflict: 'device_id')
-        .select('device_id');
+    await _safeRequest(
+      () => _client
+          .from('device_remote_flags')
+          .upsert({'device_id': deviceId}, onConflict: 'device_id')
+          .select('device_id'),
+      debugLabel: 'remote_flags/upsert_$deviceId',
+    );
   }
 
   Future<void> requestRemotePing(String deviceId) async {
     await ensureRemoteFlags(deviceId);
     final now = _utcNowIso();
-    await _client
-        .from('device_remote_flags')
-        .upsert({
-          'device_id': deviceId,
-          'ping_requested': true,
-          'ping_requested_at': now,
-          'ping_status': 'pending',
-        }, onConflict: 'device_id')
-        .select('device_id');
+    await _safeRequest(
+      () => _client
+          .from('device_remote_flags')
+          .upsert({
+            'device_id': deviceId,
+            'ping_requested': true,
+            'ping_requested_at': now,
+            'ping_status': 'pending',
+          }, onConflict: 'device_id')
+          .select('device_id'),
+      debugLabel: 'remote_flags/ping_$deviceId',
+    );
   }
 
   Future<void> requestRemoteForget(String deviceId) async {
-    await ensureRemoteFlags(deviceId);
-    final now = _utcNowIso();
-    await _client
-        .from('device_remote_flags')
-        .upsert({
-          'device_id': deviceId,
-          'forget_requested': true,
-          'forget_requested_at': now,
-          'forget_status': 'pending',
-        }, onConflict: 'device_id')
-        .select('device_id');
-  }
-
-  RemoteActuator? _pickSystemActuator(List<RemoteActuator> actuators) {
-    for (final actuator in actuators) {
-      final kindLower = actuator.kind.toLowerCase();
-      if (kindLower == 'system') return actuator;
-      final meta = actuator.meta;
-      final metaKind = meta['kind']?.toString().toLowerCase();
-      if (metaKind == 'system') return actuator;
-      final role = meta['role']?.toString().toLowerCase();
-      if (role == 'factory-reset') return actuator;
-    }
-    return null;
-  }
-
-  Future<void> _ensureSystemActuator(String deviceId) async {
-    final now = DateTime.now().toUtc().toIso8601String();
-    try {
-      await _client.from('actuators').upsert({
-        'device_id': deviceId,
-        'name': 'system',
-        'kind': 'system',
-        'meta': {'role': 'factory-reset', 'ensured_at': now},
-      }, onConflict: 'device_id,name');
-    } catch (_) {
-      // Es posible que ya exista; ignoramos el error.
-    }
+    debugPrint(
+      'requestRemoteForget($deviceId) ignorado: la operacion remota esta deshabilitada.',
+    );
+    throw StateError(
+      'El olvido remoto esta deshabilitado temporalmente. '
+      'Conectate a la red local del dispositivo y usa la opcion de olvido local.',
+    );
   }
 
   Future<String?> fetchCommandStatus(int commandId) async {
-    final response = await _client
-        .from('actuator_commands')
-        .select('status')
-        .eq('id', commandId)
-        .maybeSingle();
+    final response = await _safeRequest(
+      () => _client
+          .from('actuator_commands')
+          .select('status')
+          .eq('id', commandId)
+          .maybeSingle(),
+      debugLabel: 'actuator_commands/$commandId',
+    );
 
     if (response == null) return null;
     final status = response['status'];
@@ -379,19 +352,11 @@ class RemoteDeviceService {
   }
 
   Stream<RemoteDevicePresence?> watchDevicePresence(String deviceId) {
-    return _retryingStream<RemoteDevicePresence?>(
-      () => _client
-          .from('devices')
-          .stream(primaryKey: ['id'])
-          .eq('id', deviceId)
-          .map((rows) {
-            if (rows.isEmpty) return null;
-            final dynamic row = rows.first;
-            final Map<String, dynamic> map = row is Map<String, dynamic>
-                ? row
-                : Map<String, dynamic>.from(row as Map);
-            return RemoteDevicePresence.fromMap(map);
-          }),
+    return _pollingStream<RemoteDevicePresence?>(
+      () => fetchDevicePresence(deviceId),
+      interval: const Duration(seconds: 15),
+      maxInterval: const Duration(seconds: 120),
+      label: 'device_presence/$deviceId',
     );
   }
 
@@ -405,67 +370,171 @@ class RemoteDeviceService {
 
   String _utcNowIso() => DateTime.now().toUtc().toIso8601String();
 
-  Stream<T> _retryingStream<T>(
-    Stream<T> Function() sourceBuilder, {
-    Duration retryDelay = const Duration(seconds: 5),
+  Stream<T> _pollingStream<T>(
+    Future<T> Function() fetch, {
+    required Duration interval,
+    Duration? maxInterval,
+    Duration initialDelay = Duration.zero,
+    T? fallback,
+    String? label,
   }) {
-    StreamSubscription<T>? subscription;
+    Timer? timer;
     bool disposed = false;
+    bool fetching = false;
+    int consecutiveErrors = 0;
+    Duration currentInterval = interval;
+    final Duration upperInterval = maxInterval != null && maxInterval > interval
+        ? maxInterval
+        : interval;
 
     late StreamController<T> controller;
+    late void Function(Duration delay) scheduleNext;
 
-    late void Function() start;
-
-    void scheduleRestart() {
-      if (disposed) return;
-      Future.delayed(retryDelay, () {
-        if (!disposed) start();
-      });
+    Future<void> emitValue() async {
+      if (disposed || fetching) return;
+      fetching = true;
+      try {
+        final value = await fetch();
+        consecutiveErrors = 0;
+        currentInterval = interval;
+        if (!disposed) {
+          controller.add(value);
+        }
+      } catch (error, stackTrace) {
+        consecutiveErrors += 1;
+        final bool transient = _isTransientSupabaseError(error);
+        if (transient) {
+          currentInterval = _computeBackoffInterval(
+            base: interval,
+            maxInterval: upperInterval,
+            attempt: consecutiveErrors,
+          );
+          final tag = label != null ? ' [$label]' : '';
+          debugPrint(
+            'Supabase polling$tag error '
+            '(reintentando en ${currentInterval.inSeconds}s): $error',
+          );
+          if (fallback != null && !disposed) {
+            controller.add(fallback);
+          }
+        } else {
+          final tag = label != null ? ' [$label]' : '';
+          debugPrint(
+            'Supabase polling$tag error sin reintento automatico: $error',
+          );
+          debugPrint('$stackTrace');
+          currentInterval = upperInterval;
+          consecutiveErrors = 0;
+          if (fallback != null && !disposed) {
+            controller.add(fallback);
+          } else if (!disposed) {
+            controller.addError(error, stackTrace);
+          }
+        }
+      } finally {
+        fetching = false;
+        if (!disposed) {
+          scheduleNext(currentInterval);
+        }
+      }
     }
 
-    start = () {
+    scheduleNext = (Duration delay) {
+      timer?.cancel();
       if (disposed) return;
-      try {
-        subscription = sourceBuilder().listen(
-          controller.add,
-          onError: (Object error, StackTrace stackTrace) async {
-            debugPrint(
-              'Stream Supabase con error, reintentando en ${retryDelay.inSeconds}s: $error',
-            );
-            await subscription?.cancel();
-            subscription = null;
-            scheduleRestart();
-          },
-          onDone: () {
-            debugPrint(
-              'Stream Supabase finalizado, reintentando en ${retryDelay.inSeconds}s.',
-            );
-            subscription = null;
-            scheduleRestart();
-          },
-          cancelOnError: false,
-        );
-      } catch (error) {
-        debugPrint(
-          'Fallo al iniciar stream de Supabase, reintentando en ${retryDelay.inSeconds}s: $error',
-        );
-        subscription = null;
-        scheduleRestart();
-      }
+      timer = Timer(delay, () async {
+        await emitValue();
+      });
     };
 
     controller = StreamController<T>(
-      onListen: start,
-      onPause: () => subscription?.pause(),
-      onResume: () => subscription?.resume(),
-      onCancel: () async {
+      onListen: () {
+        Future<void>(() async {
+          if (initialDelay == Duration.zero) {
+            await emitValue();
+          } else {
+            scheduleNext(initialDelay);
+          }
+        });
+      },
+      onCancel: () {
         disposed = true;
-        final sub = subscription;
-        subscription = null;
-        await sub?.cancel();
+        timer?.cancel();
+        timer = null;
       },
     );
 
     return controller.stream;
+  }
+
+  Duration _computeBackoffInterval({
+    required Duration base,
+    required Duration maxInterval,
+    required int attempt,
+  }) {
+    final int factor = math.pow(2, attempt - 1).toInt();
+    final Duration candidate = Duration(seconds: base.inSeconds * factor);
+    if (candidate > maxInterval) return maxInterval;
+    if (candidate < base) return base;
+    return candidate;
+  }
+
+  static const Duration _baseRetryDelay = Duration(milliseconds: 250);
+  static const Duration _maxRetryDelay = Duration(seconds: 3);
+
+  Duration _computeRetryDelay(int attempt) {
+    final int raw =
+        _baseRetryDelay.inMilliseconds * math.pow(2, attempt - 1).toInt();
+    final int millis = raw
+        .clamp(_baseRetryDelay.inMilliseconds, _maxRetryDelay.inMilliseconds)
+        .toInt();
+    return Duration(milliseconds: millis);
+  }
+
+  Future<T> _safeRequest<T>(
+    Future<T> Function() action, {
+    String? debugLabel,
+    int maxAttempts = 3,
+  }) async {
+    Object? lastError;
+    StackTrace? lastStack;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStack = stackTrace;
+        final bool transient = _isTransientSupabaseError(error);
+        if (!transient || attempt == maxAttempts) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        final delay = _computeRetryDelay(attempt);
+        final tag = debugLabel != null ? ' [$debugLabel]' : '';
+        debugPrint(
+          'Supabase request$tag fallo (intento $attempt/$maxAttempts): $error. '
+          'Reintentando en ${delay.inMilliseconds}ms.',
+        );
+        await Future.delayed(delay);
+      }
+    }
+    Error.throwWithStackTrace(
+      lastError ?? StateError('Supabase request failed'),
+      lastStack ?? StackTrace.current,
+    );
+  }
+
+  bool _isTransientSupabaseError(Object error) {
+    if (error is TimeoutException) return true;
+    if (error is SocketException) return true;
+    if (error is HandshakeException) return true;
+    if (error is http.ClientException) return true;
+    if (error is PostgrestException) return true;
+
+    final message = error.toString().toLowerCase();
+    if (message.contains('broken pipe')) return true;
+    if (message.contains('connection reset')) return true;
+    if (message.contains('connection terminated during handshake')) return true;
+    if (message.contains('connection closed')) return true;
+    return false;
   }
 }

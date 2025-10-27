@@ -42,7 +42,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final AuthController _auth = Get.find<AuthController>();
   final RemoteDeviceService _remoteService = RemoteDeviceService();
 
@@ -152,6 +153,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _headerCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -166,6 +168,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       }
     });
     SecurityMonitorService.instance.start();
+    SecurityMonitorService.instance.updateForegroundStatus(true);
     _pageCtrl.addListener(() => setState(() => _page = _pageCtrl.page ?? 0));
     _scrollCtrl.addListener(() {
       final next = _scrollCtrl.offset.clamp(0.0, 280.0);
@@ -177,6 +180,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _lanTimer?.cancel();
     _pageCtrl.dispose();
     _scrollCtrl.dispose();
@@ -195,6 +199,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     }
     SecurityMonitorService.instance.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final bool isForeground = state == AppLifecycleState.resumed;
+    SecurityMonitorService.instance.updateForegroundStatus(isForeground);
   }
 
   // ============== CARGA DE DATOS ==============
@@ -521,8 +531,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   void _handleDetectorSignals(String deviceId, List<RemoteLiveSignal> signals) {
     final data = _extractDetectorData(signals);
     final latest = _latestUpdatedAt(signals);
-    final freshTimestamp =
-        (latest != null && _isTimestampFresh(latest)) ? latest : null;
+    final freshTimestamp = (latest != null && _isTimestampFresh(latest))
+        ? latest
+        : null;
     final hostHint = data != null ? data['host']?.toString() : null;
     final ipHint = data != null ? data['ip']?.toString() : null;
 
@@ -585,8 +596,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         final signals = await _remoteService.fetchLiveSignals(deviceId);
         final data = _extractDetectorData(signals);
         final latest = _latestUpdatedAt(signals);
-        final freshTimestamp =
-            (latest != null && _isTimestampFresh(latest)) ? latest : null;
+        final freshTimestamp = (latest != null && _isTimestampFresh(latest))
+            ? latest
+            : null;
         final hostHint = data != null ? data['host']?.toString() : null;
         final ipHint = data != null ? data['ip']?.toString() : null;
 
@@ -1127,7 +1139,6 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     Get.to(() => const SettingsPage());
   }
 
-
   Widget _buildDevicesGrid() {
     const spacing = 12.0;
     final devices = _activeDevices;
@@ -1322,7 +1333,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       return LayoutBuilder(
         builder: (context, constraints) {
           final pos = servoData?['pos'];
-          final posText = pos is num ? '${pos.round()}ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂdeg' : null;
+          final posText = pos is num
+              ? '${pos.round()}ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂdeg'
+              : null;
           final buttonWidth = math.min(
             math.max(constraints.maxWidth * 0.5, 110.0),
             isWide ? 160.0 : 136.0,
@@ -1370,8 +1383,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ),
                   label: Text(servoOn ? 'Apagar' : 'Encender'),
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        servoOn ? cs.primary : cs.surfaceContainerHighest,
+                    backgroundColor: servoOn
+                        ? cs.primary
+                        : cs.surfaceContainerHighest,
                     foregroundColor: servoOn ? cs.onPrimary : cs.onSurface,
                     padding: const EdgeInsets.symmetric(
                       vertical: 12,
@@ -1487,8 +1501,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       child: Align(alignment: Alignment.center, child: content),
     );
 
-    final borderColor =
-        online ? cs.primary.withValues(alpha: 0.35) : cs.outlineVariant;
+    final borderColor = online
+        ? cs.primary.withValues(alpha: 0.35)
+        : cs.outlineVariant;
 
     final header = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1607,8 +1622,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     final cs = theme.colorScheme;
     final media = MediaQuery.of(context);
     final bool isDark = theme.brightness == Brightness.dark;
-    final Color headerForeground =
-        isDark ? cs.onPrimary : cs.onPrimaryContainer;
+    final Color headerForeground = isDark
+        ? cs.onPrimary
+        : cs.onPrimaryContainer;
     final Color headerSecondary = isDark
         ? cs.onPrimary.withValues(alpha: 0.82)
         : cs.onPrimaryContainer.withValues(alpha: 0.74);
@@ -1732,10 +1748,19 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               final double circleSize = media.size.width * 1.7;
               final double baseTop = -circleSize * (0.72 - 0.12 * progress);
               final double parallaxShift = (_scrollOffset * 0.22);
-              final double wobble = math.sin((_scrollOffset + (_page * 32)) * 0.015) * 14;
+              final double wobble =
+                  math.sin((_scrollOffset + (_page * 32)) * 0.015) * 14;
               final double top = baseTop + parallaxShift + wobble;
-              final double scale = _lerp(0.9, 1.02, progress - (_scrollOffset * 0.0004));
-              final double glowOpacity = (0.88 + math.sin((_scrollOffset + 24) * 0.02) * 0.06).clamp(0.75, 1.0);
+              final double scale = _lerp(
+                0.9,
+                1.02,
+                progress - (_scrollOffset * 0.0004),
+              );
+              final double glowOpacity =
+                  (0.88 + math.sin((_scrollOffset + 24) * 0.02) * 0.06).clamp(
+                    0.75,
+                    1.0,
+                  );
               return Positioned(
                 top: top,
                 left: (media.size.width - circleSize) / 2,
@@ -1747,7 +1772,11 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                       width: circleSize,
                       height: circleSize,
                       decoration: BoxDecoration(
-                        color: cs.primary.withValues(alpha: theme.brightness == Brightness.dark ? 0.6 : 0.9),
+                        color: cs.primary.withValues(
+                          alpha: theme.brightness == Brightness.dark
+                              ? 0.6
+                              : 0.9,
+                        ),
                         gradient: theme.brightness == Brightness.dark
                             ? null
                             : LinearGradient(
@@ -1809,9 +1838,9 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     assert(icon != null || child != null, 'Provide an icon or a child');
     final cs = Theme.of(context).colorScheme;
     final Color fg = foregroundColor ?? cs.onPrimary;
-    final Color bg =
-        backgroundColor ?? cs.onPrimary.withValues(alpha: 0.12);
-    final Color splash = splashColor ??
+    final Color bg = backgroundColor ?? cs.onPrimary.withValues(alpha: 0.12);
+    final Color splash =
+        splashColor ??
         (onTap != null
             ? cs.onPrimary.withValues(alpha: 0.14)
             : Colors.transparent);
@@ -1826,11 +1855,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         onTap: onTap,
         splashColor: splash,
         highlightColor: Colors.transparent,
-        child: SizedBox(
-          height: 48,
-          width: 48,
-          child: Center(child: content),
-        ),
+        child: SizedBox(height: 48, width: 48, child: Center(child: content)),
       ),
     );
 
@@ -1893,7 +1918,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
 
   Widget _buildContentContainer(Widget child) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 32 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        32 + MediaQuery.of(context).padding.bottom,
+      ),
       child: child,
     );
   }
@@ -1940,10 +1970,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         const SizedBox(width: 8),
         Text(
           title,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w700, color: color),
         ),
       ],
     );
@@ -1962,10 +1989,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         const SizedBox(width: 8),
         Text(
           'home.devices'.tr,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            color: headerColor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w700, color: headerColor),
         ),
         const Spacer(),
         TextButton.icon(
@@ -2098,7 +2122,9 @@ class _FamilyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final photoPath = member.profileImagePath;
-    final file = photoPath != null && photoPath.isNotEmpty ? File(photoPath) : null;
+    final file = photoPath != null && photoPath.isNotEmpty
+        ? File(photoPath)
+        : null;
     ImageProvider? photoProvider;
     if (file != null && file.existsSync()) {
       photoProvider = FileImage(file);
@@ -2456,14 +2482,3 @@ class _NavBtn extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
