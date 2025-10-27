@@ -21,7 +21,7 @@
 
     <application
         android:name="${applicationName}"
-        android:label="flutter_seguridad_en_casa"
+        android:label="SecurityHouse"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">

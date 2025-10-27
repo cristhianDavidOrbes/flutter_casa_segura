@@ -4,7 +4,7 @@ class AppTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
     'es': {
-      'app.name': 'Casa Segura',
+      'app.name': 'SecurityHouse',
       'home.title': 'Inicio',
       'home.notifications': 'Notificaciones',
       'home.settings': 'Configuración',
@@ -155,7 +155,7 @@ class AppTranslations extends Translations {
       'settings.family.subtitle': 'Agrega contactos y revisa su actividad.',
     },
     'en': {
-      'app.name': 'Safe Home',
+      'app.name': 'SecurityHouse',
       'home.title': 'Home',
       'home.notifications': 'Notifications',
       'home.settings': 'Settings',
