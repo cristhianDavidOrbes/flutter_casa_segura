@@ -20,6 +20,7 @@ import 'package:flutter_seguridad_en_casa/features/security/data/security_event_
 import 'package:flutter_seguridad_en_casa/features/security/domain/security_event.dart';
 import 'package:flutter_seguridad_en_casa/repositories/device_repository.dart';
 import 'package:flutter_seguridad_en_casa/services/remote_device_service.dart';
+import 'package:flutter_seguridad_en_casa/services/motion_settings_service.dart';
 
 class SecurityMonitorService {
   SecurityMonitorService._();
@@ -50,6 +51,11 @@ class SecurityMonitorService {
   final Map<String, String> _deviceSnapshotUrls = {};
   final Map<String, DateTime> _snapshotCooldown = {};
   final Map<String, _SignedUrlCache> _signedUrlCache = {};
+  final MotionSettingsService _motionSettings = MotionSettingsService.instance;
+  final Map<String, _MotionCandidate> _motionCandidates = {};
+  final Map<String, DateTime> _motionCooldownUntil = {};
+  static const Duration _motionHoldDuration = Duration(seconds: 2);
+  static const Duration _motionCooldownDuration = Duration(seconds: 15);
   List<DeviceRecord> _cachedDevices = <DeviceRecord>[];
   DateTime _lastDeviceRefresh = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _deviceRefreshInterval = Duration(seconds: 30);
@@ -109,6 +115,8 @@ class SecurityMonitorService {
     _cameraPolling = false;
     _sensorPolling = false;
     _pendingDetections.clear();
+    _motionCandidates.clear();
+    _motionCooldownUntil.clear();
     _signalCache.clear();
     _deviceSnapshotUrls.clear();
     _snapshotCooldown.clear();
@@ -328,8 +336,11 @@ class SecurityMonitorService {
     try {
       final devices = await _getAvailableDevices();
       for (final device in devices) {
-        if (device.type.toLowerCase().contains('cam')) continue;
-        // TODO: integrar lectura real de sensores.
+        final typeLower = device.type.toLowerCase();
+        if (typeLower.contains('cam')) continue;
+        if (typeLower.contains('detector')) {
+          await _processMotionDevice(device);
+        }
       }
     } catch (e, st) {
       debugPrint('Sensor poll error: $e\n$st');
@@ -338,6 +349,106 @@ class SecurityMonitorService {
     }
   }
 
+  Future<void> _processMotionDevice(DeviceRecord device) async {
+    try {
+      final sample = await _latestMotionSample(device.id);
+      if (sample == null) {
+        _motionCandidates.remove(device.id);
+        return;
+      }
+
+      final distance = sample.distanceCm;
+      if (distance < 0 || sample.ultraOk == false) {
+        _motionCandidates.remove(device.id);
+        return;
+      }
+
+      final threshold = _motionSettings.thresholdFor(device.id);
+      if (distance > threshold) {
+        _motionCandidates.remove(device.id);
+        return;
+      }
+
+      final candidate = _motionCandidates.putIfAbsent(
+        device.id,
+        () => _MotionCandidate(
+          firstBelow: sample.timestamp,
+          lastDistance: distance,
+          lastSample: sample.timestamp,
+        ),
+      );
+
+      if (sample.timestamp.isBefore(candidate.firstBelow)) {
+        candidate.firstBelow = sample.timestamp;
+      }
+
+      candidate.lastDistance = distance;
+      candidate.lastSample = sample.timestamp;
+
+      final elapsed = sample.timestamp.difference(candidate.firstBelow);
+      final cooldownUntil = _motionCooldownUntil[device.id];
+      if (elapsed >= _motionHoldDuration) {
+        final now = DateTime.now();
+        if (cooldownUntil == null || now.isAfter(cooldownUntil)) {
+          _motionCooldownUntil[device.id] =
+              now.add(_motionCooldownDuration);
+          await _recordMotionEvent(
+            device: device,
+            distanceCm: distance,
+            thresholdCm: threshold,
+            occurredAt: sample.timestamp,
+          );
+        }
+        _motionCandidates.remove(device.id);
+      }
+    } catch (e, st) {
+      debugPrint('Motion processing error for ${device.id}: $e\n$st');
+    }
+  }
+
+  Future<_MotionSample?> _latestMotionSample(String deviceId) async {
+    final signals = await _getLiveSignals(deviceId);
+    if (signals.isEmpty) return null;
+
+    RemoteLiveSignal? latest;
+    for (final signal in signals) {
+      if (latest == null || signal.updatedAt.isAfter(latest!.updatedAt)) {
+        latest = signal;
+      }
+    }
+    if (latest == null) return null;
+
+    final extra = latest!.extra;
+    final dynamic direct = extra['ultra_cm'] ?? extra['distance_cm'];
+    double? cm;
+    if (direct is num) cm = direct.toDouble();
+
+    final dynamic ultrasonic = extra['ultrasonic'];
+    if (cm == null && ultrasonic is Map) {
+      final raw = ultrasonic['cm'];
+      if (raw is num) cm = raw.toDouble();
+    }
+
+    cm ??= latest!.valueNumeric;
+    if (cm == null) return null;
+
+    final dynamic ultraOkRaw =
+        extra['ultra_ok'] ?? extra['ultrasonic_ok'];
+    bool? ultraOk;
+    if (ultraOkRaw is bool) ultraOk = ultraOkRaw;
+    if (ultraOkRaw is num) ultraOk = ultraOkRaw != 0;
+    if (ultraOk == null && ultrasonic is Map) {
+      final rawOk = ultrasonic['ok'];
+      if (rawOk is bool) ultraOk = rawOk;
+      if (rawOk is num) ultraOk = rawOk != 0;
+    }
+
+    return _MotionSample(
+      distanceCm: cm,
+      timestamp: latest!.updatedAt,
+      ultraOk: ultraOk,
+    );
+  }
   bool _ensureAuthenticated() {
     if (_isAuthenticated) return true;
     debugPrint(
@@ -703,4 +814,28 @@ class _SignalCache {
 
   final List<RemoteLiveSignal> signals;
   final DateTime timestamp;
+}
+
+class _MotionCandidate {
+  _MotionCandidate({
+    required this.firstBelow,
+    required this.lastDistance,
+    required this.lastSample,
+  });
+
+  DateTime firstBelow;
+  double lastDistance;
+  DateTime lastSample;
+}
+
+class _MotionSample {
+  const _MotionSample({
+    required this.distanceCm,
+    required this.timestamp,
+    required this.ultraOk,
+  });
+
+  final double distanceCm;
+  final DateTime timestamp;
+  final bool? ultraOk;
 }

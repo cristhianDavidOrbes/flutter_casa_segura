@@ -10,7 +10,6 @@
 #include <HTTPClient.h>
 
 // ===== Pines =====
-const int PIN_SOUND_DO = 15;  // D15 -> salida digital del micrófono (activo-bajo)
 const int PIN_US_TRIG  = 4;   // D4  -> Trigger del HC-SR04
 const int PIN_US_ECHO  = 21;  // D21 -> Echo del HC-SR04 (usar divisor a 3.3V)
 
@@ -371,25 +370,10 @@ bool supabaseRequest(const String& method,
 
 // ===== Sensores =====
 struct SensorSnapshot {
-  int micDo        = 1;
-  int micEvent     = 0;
   long ultraCm     = -1;
   bool ultraOk     = false;
   uint32_t updated = 0;
 } sensorState;
-
-int stableReadMicDo() {
-  static int state = 1;
-  static unsigned long lastChange = 0;
-  const unsigned long debounceMs = 80;
-  int raw = digitalRead(PIN_SOUND_DO);
-  unsigned long now = millis();
-  if (raw != state && (now - lastChange) > debounceMs) {
-    state = raw;
-    lastChange = now;
-  }
-  return state;
-}
 
 long readUltrasonicCM(uint32_t timeoutUs = 30000UL) {
   digitalWrite(PIN_US_TRIG, LOW);
@@ -407,19 +391,14 @@ void updateSensors(bool forceNow) {
   uint32_t now = millis();
   if (!forceNow && (now - sensorState.updated) < SENSOR_REFRESH_MS) return;
 
-  int mic = stableReadMicDo();
   long cm = readUltrasonicCM();
 
-  sensorState.micDo = mic;
-  sensorState.micEvent = (mic == 0) ? 1 : 0;
   sensorState.ultraCm = cm;
   sensorState.ultraOk = (cm >= 0);
   sensorState.updated = now;
 
-  Serial.printf("[SENS] sound_do=%d sound_evt=%d ultra_cm=%ld ultra_ok=%s\n",
-                sensorState.micDo,
-                sensorState.micEvent,
-                sensorState.ultraCm,
+  Serial.printf("[SENS] ultra_cm=%ld ultra_ok=%s\n",
+                sensorState.ultraOk ? sensorState.ultraCm : -1,
                 sensorState.ultraOk ? "true" : "false");
 }
 
@@ -433,8 +412,6 @@ void supabaseHeartbeat(bool forceNow) {
   lastHeartbeatMs = now;
 
   String extra = "{";
-  extra += "\"sound_evt\":" + String(sensorState.micEvent) + ",";
-  extra += "\"sound_do\":"  + String(sensorState.micDo) + ",";
   extra += "\"ultra_cm\":"  + String(sensorState.ultraOk ? sensorState.ultraCm : -1) + ",";
   extra += "\"ultra_ok\":"  + String(sensorState.ultraOk ? "true" : "false") + ",";
   extra += "\"host\":\""   + jsonEscape(hostLabel) + "\",";
@@ -442,7 +419,7 @@ void supabaseHeartbeat(bool forceNow) {
   extra += "}";
 
   double numeric = sensorState.ultraOk ? (double)sensorState.ultraCm : -1.0;
-  String textState = sensorState.micEvent ? "noise" : "idle";
+  String textState = sensorState.ultraOk ? "distance" : "no-data";
 
   String payload = "{";
   payload += "\"_device_name\":\"" + jsonEscape(deviceName) + "\",";
@@ -662,10 +639,6 @@ void handleSensors() {
   updateSensors(true);
 
   String json = "{";
-  json += "\"sound\":{";
-  json += "\"do\":"  + String(sensorState.micDo) + ",";
-  json += "\"event\":"+ String(sensorState.micEvent);
-  json += "},";
   json += "\"ultrasonic\":{";
   json += "\"ok\":" + String(sensorState.ultraOk ? "true" : "false") + ",";
   json += "\"cm\":" + String(sensorState.ultraOk ? sensorState.ultraCm : -1);
@@ -822,7 +795,6 @@ void setup() {
   delay(150);
   makeUniqueHostLabel();
 
-  pinMode(PIN_SOUND_DO, INPUT_PULLDOWN);
   pinMode(PIN_US_TRIG, OUTPUT);
   pinMode(PIN_US_ECHO, INPUT);
   digitalWrite(PIN_US_TRIG, LOW);

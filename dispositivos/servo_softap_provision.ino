@@ -1,7 +1,7 @@
-// ===== UNIVERSAL (ESP8266 & ESP32) – SoftAP provisioning + Supabase + SERVO =====
+// ===== UNIVERSAL (ESP8266 & ESP32) - SoftAP provisioning + Supabase + SERVO =====
 // - SoftAP "CASA-ESP_xxxx" si no hay credenciales. En modo AP: 192.168.4.1 -> /nets, /provision
 // - Tras provisionar: conecta a Wi-Fi, apaga AP, anuncia mDNS _casa._tcp, endpoints locales /info /servo /sensors
-// - Guarda también supabase_url, supabase_key, device_id, device_key para operar contra Supabase
+// - Guarda tambien supabase_url, supabase_key, device_id, device_key para operar contra Supabase
 // - Consulta Supabase (device_next_command) cada 1 s y actualiza estado con upsert_live_signal
 // - Serial: enviar '1' => limpia credenciales y vuelve a SoftAP
 
@@ -20,7 +20,7 @@ struct SupabaseCreds;
   WebServer http(80);
   Preferences prefs;
   #ifndef SERVO_PIN
-    #define SERVO_PIN 13   // ajusta según tu placa ESP32
+    #define SERVO_PIN 13   // ajusta segun tu placa ESP32
   #endif
 #elif defined(ESP8266)
   #include <ESP8266WiFi.h>
@@ -38,8 +38,8 @@ struct SupabaseCreds;
   #error "Placa no soportada (requiere ESP8266 o ESP32)"
 #endif
 
-// Clave pública (anon) de Supabase como respaldo.
-// Si el dispositivo no la recibe durante la provisión, usará este valor.
+// Clave publica (anon) de Supabase como respaldo.
+// Si el dispositivo no la recibe durante la provision, usara este valor.
 const char* SUPABASE_ANON_FALLBACK =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhxbXlkeWVzYWZuaG9taHpld3NxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkyNzY0OTgsImV4cCI6MjA3NDg1MjQ5OH0.YFteDpgiU87dwNq2PIaDrm28h5w6nu0T0mLEUjmTrmU";
 

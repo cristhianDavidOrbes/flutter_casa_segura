@@ -696,18 +696,6 @@ class _HomePageState extends State<HomePage>
     }
     final extra = selected.extra;
     if (extra.isNotEmpty) {
-      final soundEvt = extra['sound_evt'];
-      if (soundEvt is bool) {
-        map['sound_event'] = soundEvt;
-      } else if (soundEvt is num) {
-        map['sound_event'] = soundEvt != 0;
-      }
-      final soundDo = extra['sound_do'];
-      if (soundDo is num) {
-        map['sound_raw'] = soundDo.toInt();
-      } else if (soundDo != null) {
-        map['sound_raw'] = soundDo.toString();
-      }
       if (!map.containsKey('distance_cm')) {
         final cm = extra['ultra_cm'];
         if (cm is num) {
