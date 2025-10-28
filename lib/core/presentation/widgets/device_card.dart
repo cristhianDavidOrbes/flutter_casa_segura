@@ -376,22 +376,6 @@ List<MapEntry<String, String>> _extractPairs(Map<String, dynamic>? source) {
     addPair('Distancia', formatDistance(distance));
   }
 
-  final soundEvt =
-      remaining.remove('sound_event') ?? remaining.remove('sound_evt');
-  final soundLabel = formatBool(
-    soundEvt,
-    trueLabel: 'Detectado',
-    falseLabel: 'Normal',
-  );
-  if (soundLabel != null) addPair('Sonido', soundLabel);
-
-  final soundRaw =
-      remaining.remove('sound_raw') ?? remaining.remove('sound_do');
-  if (soundRaw is num) {
-    addPair('Microfono DO', soundRaw.toInt().toString());
-  } else if (soundRaw != null) {
-    addPair('Microfono DO', soundRaw.toString());
-  }
 
   final ultraOk =
       remaining.remove('ultrasonic_ok') ?? remaining.remove('ultra_ok');
