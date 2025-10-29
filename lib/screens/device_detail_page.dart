@@ -96,6 +96,8 @@ class DeviceDetailPage extends StatefulWidget {
 
 class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
+  
+
   static const String _defaultSnapshotBucket = 'camera_frames';
 
 
@@ -103,6 +105,19 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   final RemoteDeviceService _remoteService = RemoteDeviceService();
 
   final DeviceRepository _repository = DeviceRepository.instance;
+
+    @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Device Detail'),
+      ),
+      body: const Center(
+        child: Text('Detalles del dispositivo en construcción...'),
+      ),
+    );
+  }
+
 
 
 
@@ -2486,108 +2501,53 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
 
 
-  void _mergeRemoteSignal(Map<String, dynamic> out, RemoteLiveSignal signal) {
+ void _mergeRemoteSignal(Map<String, dynamic> out, RemoteLiveSignal signal) {
+  final rawName = signal.name.trim();
+  final name = rawName.isEmpty ? signal.id : rawName;
 
-    final rawName = signal.name.trim();
+  // Creamos la entrada principal
+  final entry = <String, dynamic>{
+    'kind': signal.kind,
+    if (signal.valueNumeric != null) 'value_numeric': signal.valueNumeric,
+    if (signal.valueText != null && signal.valueText!.isNotEmpty)
+      'value_text': signal.valueText,
+    if (signal.extra.isNotEmpty) 'extra': signal.extra,
+  };
 
-    final name = rawName.isEmpty ? signal.id : rawName;
+  out[name] = entry;
 
-
-
-    final entry = <String, dynamic>{
-
-      'kind': signal.kind,
-
-      if (signal.valueNumeric != null) 'value_numeric': signal.valueNumeric,
-
-      if (signal.valueText != null && signal.valueText!.isNotEmpty)
-
-        'value_text': signal.valueText,
-
-      if (signal.extra.isNotEmpty) 'extra': signal.extra,
-
-    };
-
-
-
-    out[name] = entry;
-
-
-
-    if (signal.extra.isNotEmpty) {
-
-      for (final MapEntry<dynamic, dynamic> item in signal.extra.entries) {
-
-        out[item.key.toString()] = item.value;
-
-      }
-
+  // Agregamos los datos extra al mapa principal
+  if (signal.extra.isNotEmpty) {
+    for (final MapEntry<dynamic, dynamic> item in signal.extra.entries) {
+      out[item.key.toString()] = item.value;
     }
-
-
-
-    if (name == 'detector_state') {
-
-      final extra = signal.extra;
-
-
-
-
-
-
-      }
-
-
-
-      }
-
-
-
-        if (existing is Map<String, dynamic>) {
-
-
-        } else {
-
-
-        }
-
-      }
-
-
-
-      final ultrasonic = <String, dynamic>{};
-
-      if (extra.containsKey('ultra_cm')) {
-
-        ultrasonic['cm'] = extra['ultra_cm'];
-
-      }
-
-      if (extra.containsKey('ultra_ok')) {
-
-        ultrasonic['ok'] = extra['ultra_ok'];
-
-      }
-
-      if (ultrasonic.isNotEmpty) {
-
-        final existing = out['ultrasonic'];
-
-        if (existing is Map<String, dynamic>) {
-
-          existing.addAll(ultrasonic);
-
-        } else {
-
-          out['ultrasonic'] = ultrasonic;
-
-        }
-
-      }
-
-    }
-
   }
+
+  // Procesamiento especial para detector_state
+  if (name == 'detector_state') {
+    final extra = signal.extra;
+
+    // Bloque de procesamiento de datos ultrasónicos
+    final ultrasonic = <String, dynamic>{};
+
+    if (extra.containsKey('ultra_cm')) {
+      ultrasonic['cm'] = extra['ultra_cm'];
+    }
+
+    if (extra.containsKey('ultra_ok')) {
+      ultrasonic['ok'] = extra['ultra_ok'];
+    }
+
+    if (ultrasonic.isNotEmpty) {
+      final existing = out['ultrasonic'];
+      if (existing is Map<String, dynamic>) {
+        existing.addAll(ultrasonic);
+      } else {
+        out['ultrasonic'] = ultrasonic;
+      }
+    }
+  }
+}
 
 
 
@@ -2708,23 +2668,12 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
 
   @override
-
-  Widget build(BuildContext context) {
-
+  Widget _buildExtraUI(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-
     final detectorSummary = _buildDetectorSummary(cs);
-
     final data = _effectiveLiveData;
-
     final usingRemote = _showingRemoteData;
-
-    final dataSourceLabel = usingRemote
-
-        ? (_remoteSourceLabel ?? 'Supabase')
-
-        : _endpointUsed;
-
+    final dataSourceLabel = usingRemote ? (_remoteSourceLabel ?? 'Supabase') : _endpointUsed;
     final remoteFlagsInfo = _buildRemoteFlagsInfo(cs);
 
 
@@ -4203,73 +4152,55 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
 
 
+ // 👇 Pega la función aquí, justo antes del cierre de la clase
+  Widget _buildSensorSummary(
+    double? distance,
+    bool? ultraOk,
+    List<Widget> entries,
+    BuildContext context,
+  ) {
     if (distance != null) {
-
       final formatted = distance.abs() >= 100
-
           ? distance.toStringAsFixed(0)
-
           : distance.toStringAsFixed(distance.abs() >= 10 ? 1 : 2);
-
       entries.add(_kv('Distancia', '$formatted cm'));
-
     }
-
-
 
     if (ultraOk != null) {
-
       entries.add(_kv('Ultrasonido', ultraOk ? 'OK' : 'Sin eco'));
-
     }
 
-
-
-    if (entries.isEmpty) return null;
-
-
+    if (entries.isEmpty) return const SizedBox();
 
     final sourceLabel = _endpointUsed?.isNotEmpty == true
-
         ? _endpointUsed!
-
-        : (_remoteSourceLabel?.isNotEmpty == true ? _remoteSourceLabel! : null);
-
-
+        : (_remoteSourceLabel?.isNotEmpty == true
+            ? _remoteSourceLabel!
+            : null);
 
     if (sourceLabel != null) {
-
       entries.add(_kv('Fuente', sourceLabel));
-
     }
 
-
+    final cs = Theme.of(context).colorScheme;
 
     return Column(
-
       crossAxisAlignment: CrossAxisAlignment.start,
-
       children: [
-
         Text(
-
           'Resumen de sensores',
-
-          style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary),
-
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: cs.primary,
+          ),
         ),
-
         const SizedBox(height: 8),
-
         ...entries,
-
       ],
-
     );
-
   }
 
-}
+} // 👈 Esta llave sí debe quedar al final del archivo
 
 
 
