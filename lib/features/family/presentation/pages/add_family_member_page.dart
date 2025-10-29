@@ -7,9 +7,12 @@ import 'package:get/get.dart';
 
 import 'package:flutter_seguridad_en_casa/controllers/family_controller.dart';
 import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
+import 'package:flutter_seguridad_en_casa/repositories/family_repository.dart';
 
 class AddFamilyMemberPage extends StatefulWidget {
-  const AddFamilyMemberPage({super.key});
+  final FamilyMember? existingMember; // 👈 parámetro opcional para editar
+
+  const AddFamilyMemberPage({super.key, this.existingMember});
 
   @override
   State<AddFamilyMemberPage> createState() => _AddFamilyMemberPageState();
@@ -38,6 +41,22 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     } else {
       _controller = Get.put(FamilyController(), permanent: true);
     }
+
+    // 👇 precargar datos si estamos editando
+    if (widget.existingMember != null) {
+      _nameCtrl.text = widget.existingMember!.name;
+      _relationCtrl.text = widget.existingMember!.relation;
+      _phoneCtrl.text = widget.existingMember!.phone ?? '';
+      _emailCtrl.text = widget.existingMember!.email ?? '';
+      _photoPath = widget.existingMember!.profileImagePath;
+
+      _schedules.addAll(widget.existingMember!.schedules.map(
+        (s) => _ScheduleRange(
+          start: _parseTime(s.start),
+          end: _parseTime(s.end),
+        ),
+      ));
+    }
   }
 
   @override
@@ -61,6 +80,7 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
       _saving = true;
       _scheduleError = null;
     });
+
     try {
       final schedules = _schedules
           .where((range) => range.start != null && range.end != null)
@@ -72,16 +92,36 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
           )
           .toList(growable: false);
 
-      final member = await _controller.addMember(
-        name: _nameCtrl.text.trim(),
-        relation: _relationCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-        profileImagePath: _photoPath,
-        schedules: schedules,
-      );
-      if (!mounted) return;
-      Get.back(result: member);
+      if (widget.existingMember == null) {
+        // 👉 Crear nuevo
+        final member = await _controller.addMember(
+          name: _nameCtrl.text.trim(),
+          relation: _relationCtrl.text.trim(),
+          phone:
+              _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          email:
+              _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+          profileImagePath: _photoPath,
+          schedules: schedules,
+        );
+        if (!mounted) return;
+        Get.back(result: member);
+      } else {
+        // 👉 Editar existente
+        final updated = widget.existingMember!.copyWith(
+          name: _nameCtrl.text.trim(),
+          relation: _relationCtrl.text.trim(),
+          phone:
+              _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          email:
+              _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+          profileImagePath: _photoPath,
+          schedules: schedules,
+        );
+        await FamilyRepository.instance.updateFamilyMember(updated);
+        if (!mounted) return;
+        Get.back(result: updated);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,6 +163,13 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     return '$hour:$minute';
   }
 
+  TimeOfDay _parseTime(String value) {
+    final parts = value.split(':');
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
   Future<void> _pickPhoto() async {
     try {
       final picked = await _picker.pickImage(
@@ -159,7 +206,8 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('family.add.photoError'.trParams({'error': '$e'}))),
+        SnackBar(
+            content: Text('family.add.photoError'.trParams({'error': '$e'}))),
       );
     }
   }
@@ -197,8 +245,14 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
     final photoFile =
         _photoPath != null && _photoPath!.isNotEmpty ? File(_photoPath!) : null;
     final hasPhoto = photoFile?.existsSync() ?? false;
+    final isEditing = widget.existingMember != null;
+
     return Scaffold(
-      appBar: AppBar(title: Text('family.add.title'.tr)),
+      appBar: AppBar(
+        title: Text(isEditing
+            ? 'Modificar Registro '.tr
+            : 'Editar Perfil de Persona Cercana '.tr),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
@@ -207,7 +261,9 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'family.add.subtitle'.tr,
+                isEditing
+                    ? 'Editar Perfil '.tr
+                    : 'Registro Actualizado '.tr,
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
@@ -356,7 +412,9 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
                   : FilledButton.icon(
                       onPressed: _submit,
                       icon: const Icon(Icons.save_outlined),
-                      label: Text('family.add.submit'.tr),
+                      label: Text(isEditing
+                          ? 'Guardar Registro '.tr
+                          : 'family.add.submit'.tr),
                     ),
             ],
           ),

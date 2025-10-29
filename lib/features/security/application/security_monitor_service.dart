@@ -357,6 +357,34 @@ class SecurityMonitorService {
         return;
       }
 
+  // <<-- Coloca aquí _recordMotionEvent
+Future<void> _recordMotionEvent({
+  required DeviceRecord device,
+  required double distanceCm,
+  required double thresholdCm,
+  required DateTime occurredAt,
+}) async {
+  try {
+    debugPrint(
+        'Motion event recorded: Device=${device.id}, Distance=$distanceCm, Threshold=$thresholdCm, Time=$occurredAt');
+
+    final event = SecurityEvent(
+      deviceId: device.id,
+      deviceName: device.name,
+      label: '⚡ Movimiento detectado',
+      description:
+          'Distancia medida: $distanceCm cm (umbral: $thresholdCm cm)',
+      localImagePath: '',
+      createdAt: occurredAt,
+    );
+    await SecurityEventStore.add(event);
+    await NotificationService.instance.showSecurityAlert(event);
+    unawaited(_syncEventToSupabase(event));
+  } catch (e) {
+    debugPrint('Error recording motion event for ${device.id}: $e');
+  }
+}
+
       final distance = sample.distanceCm;
       if (distance < 0 || sample.ultraOk == false) {
         _motionCandidates.remove(device.id);
@@ -377,6 +405,8 @@ class SecurityMonitorService {
           lastSample: sample.timestamp,
         ),
       );
+
+      
 
       if (sample.timestamp.isBefore(candidate.firstBelow)) {
         candidate.firstBelow = sample.timestamp;

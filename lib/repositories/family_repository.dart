@@ -34,6 +34,26 @@ class FamilyRepository {
     return FamilyMember.fromMap(rows.first);
   }
 
+  Future<void> updateFamilyMember(FamilyMember member) async {
+    final db = await _db.database;
+    await db.update(
+      FamilyMember.tableName,
+      member.toMap(),
+      where: 'id = ?',
+      whereArgs: [member.id],
+    );
+  }
+
+  // 👉 Método para eliminar un familiar
+  Future<void> deleteFamilyMember(int id) async {
+    final db = await _db.database;
+    await db.delete(
+      FamilyMember.tableName,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<List<Event>> recentPresenceEvents(
     int memberId, {
     int limit = 4,

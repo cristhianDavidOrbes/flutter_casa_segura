@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
 import 'package:flutter_seguridad_en_casa/repositories/family_repository.dart';
+import 'package:flutter_seguridad_en_casa/features/family/presentation/pages/add_family_member_page.dart';
 
 class FamilyMemberDetailPage extends StatelessWidget {
   const FamilyMemberDetailPage({super.key, required this.member});
@@ -31,10 +32,12 @@ class FamilyMemberDetailPage extends StatelessWidget {
             future: repo.recentPresenceEvents(member.id ?? -1),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: CircularProgressIndicator(),
-                ));
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
               }
               if (snapshot.hasError) {
                 return _LogsErrorView(
@@ -62,6 +65,80 @@ class FamilyMemberDetailPage extends StatelessWidget {
                 ?.copyWith(color: cs.onSurfaceVariant),
           ),
         ],
+      ),
+
+      // Botones de acción (Editar y Eliminar)
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Botón Editar
+            ElevatedButton.icon(
+              onPressed: () async {
+                final updated = await Navigator.push<FamilyMember?>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AddFamilyMemberPage(existingMember: member),
+                  ),
+                );
+
+                if (updated != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Familiar actualizado")),
+                  );
+                  Navigator.pop(context, true); // refrescar lista
+                }
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text("Editar"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                minimumSize: const Size(140, 48),
+              ),
+            ),
+
+            // Botón Eliminar
+            ElevatedButton.icon(
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text("Eliminar familiar"),
+                    content: const Text(
+                        "¿Seguro que deseas eliminar a este familiar?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text("Cancelar"),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text("Eliminar"),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await repo.deleteFamilyMember(member.id!);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Familiar eliminado")),
+                    );
+                    Navigator.pop(context, true); // refrescar lista
+                  }
+                }
+              },
+              icon: const Icon(Icons.delete),
+              label: const Text("Eliminar"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                minimumSize: const Size(140, 48),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -223,8 +300,7 @@ class _PresenceTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final localeTag = Get.locale?.toLanguageTag();
     final date = DateTime.fromMillisecondsSinceEpoch(event.ts);
-    final dateLabel =
-        DateFormat.yMMMd(localeTag).add_Hm().format(date);
+    final dateLabel = DateFormat.yMMMd(localeTag).add_Hm().format(date);
     final isOutOfSchedule = event.type == 'entry_out_of_schedule';
     final isEntry = event.type == 'entry' || isOutOfSchedule;
     final icon = isEntry ? Icons.login : Icons.logout;
@@ -354,7 +430,6 @@ class _LogsErrorView extends StatelessWidget {
     );
   }
 }
-
 
 
 
