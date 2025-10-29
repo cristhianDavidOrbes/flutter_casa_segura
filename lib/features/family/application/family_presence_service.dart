@@ -75,6 +75,34 @@ class FamilyPresenceService {
     return false;
   }
 
+  Future<FamilyScheduleSnapshot> scheduleSnapshot(DateTime now) async {
+    final members = await _familyRepository.listMembers();
+    if (members.isEmpty) {
+      return const FamilyScheduleSnapshot(
+        withinSchedule: <FamilyMember>[],
+        outsideSchedule: <FamilyMember>[],
+      );
+    }
+
+    final within = <FamilyMember>[];
+    final outside = <FamilyMember>[];
+    for (final member in members) {
+      if (_isWithinSchedule(member, now)) {
+        within.add(member);
+      } else {
+        outside.add(member);
+      }
+    }
+
+    return FamilyScheduleSnapshot(
+      withinSchedule: within,
+      outsideSchedule: outside,
+    );
+  }
+
+  bool isWithinSchedule(FamilyMember member, DateTime now) =>
+      _isWithinSchedule(member, now);
+
   int? _toMinutes(String value) {
     final parts = value.split(':');
     if (parts.length != 2) return null;
@@ -83,5 +111,18 @@ class FamilyPresenceService {
     if (hour == null || minute == null) return null;
     return hour * 60 + minute;
   }
+}
+
+class FamilyScheduleSnapshot {
+  const FamilyScheduleSnapshot({
+    required this.withinSchedule,
+    required this.outsideSchedule,
+  });
+
+  final List<FamilyMember> withinSchedule;
+  final List<FamilyMember> outsideSchedule;
+
+  bool get hasMembers =>
+      withinSchedule.isNotEmpty || outsideSchedule.isNotEmpty;
 }
 

@@ -248,19 +248,23 @@ class SecurityMonitorService {
     final descriptionFromGemini =
         await _visionService.describeImage(
           snapshot.bytes,
-          context:
-              'Describe detalladamente lo que se observa en esta captura del dispositivo "$deviceName". '
-              'Enfocate en caracteristicas relevantes para seguridad.',
+          context: 'security.gemini.describe.context'
+              .trParams({'device': deviceName}),
         ) ??
-        'El dispositivo "$deviceName" detecto ${detection.label.toLowerCase()} '
-            '(${(detection.confidence * 100).toStringAsFixed(1)}% confianza).';
+        'security.gemini.describe.fallback'.trParams({
+          'device': deviceName,
+          'label': detection.label.toLowerCase(),
+          'confidence': (detection.confidence * 100).toStringAsFixed(1),
+        });
 
     final scheduleMessage = familyMatch != null && scheduleWindow != null
         ? (familyMatch.withinSchedule
               ? 'security.event.family.within'.trParams({
+                  'name': familyMatch.member.name,
                   'window': scheduleWindow,
                 })
               : 'security.event.family.outside'.trParams({
+                  'name': familyMatch.member.name,
                   'window': scheduleWindow,
                 }))
         : null;
@@ -404,6 +408,72 @@ class SecurityMonitorService {
     } catch (e, st) {
       debugPrint('Motion processing error for ${device.id}: $e\n$st');
     }
+  }
+
+  Future<void> _recordMotionEvent({
+    required DeviceRecord device,
+    required double distanceCm,
+    required double thresholdCm,
+    required DateTime occurredAt,
+  }) async {
+    final distanceText = distanceCm >= 100
+        ? distanceCm.toStringAsFixed(0)
+        : distanceCm.toStringAsFixed(distanceCm >= 10 ? 1 : 2);
+    final thresholdText = thresholdCm >= 100
+        ? thresholdCm.toStringAsFixed(0)
+        : thresholdCm.toStringAsFixed(thresholdCm >= 10 ? 1 : 2);
+
+    final scheduleSnapshot =
+        await FamilyPresenceService.instance.scheduleSnapshot(occurredAt);
+
+    final List<FamilyMember> activeMembers =
+        scheduleSnapshot.withinSchedule.toList(growable: false);
+    final List<FamilyMember> inactiveMembers =
+        scheduleSnapshot.outsideSchedule.toList(growable: false);
+
+    final String label;
+    final String description;
+    if (activeMembers.isNotEmpty) {
+      final names =
+          activeMembers.map((member) => member.name).join(', ');
+      label = 'security.motion.expected.label'.tr;
+      description = 'security.motion.expected.body'.trParams({
+        'device': device.name,
+        'distance': distanceText,
+        'threshold': thresholdText,
+        'names': names,
+      });
+    } else {
+      final names =
+          inactiveMembers.map((member) => member.name).join(', ');
+      label = 'security.motion.suspicious.label'.tr;
+      description = names.isNotEmpty
+          ? 'security.motion.suspicious.body.names'.trParams({
+              'device': device.name,
+              'distance': distanceText,
+              'threshold': thresholdText,
+              'names': names,
+            })
+          : 'security.motion.suspicious.body'.trParams({
+              'device': device.name,
+              'distance': distanceText,
+              'threshold': thresholdText,
+            });
+    }
+
+    final event = SecurityEvent(
+      deviceId: device.id,
+      deviceName: device.name,
+      label: label,
+      description: description,
+      localImagePath: '',
+      createdAt: occurredAt,
+      remoteImageUrl: null,
+    );
+
+    await SecurityEventStore.add(event);
+    await NotificationService.instance.showSecurityAlert(event);
+    unawaited(_syncEventToSupabase(event));
   }
 
   Future<_MotionSample?> _latestMotionSample(String deviceId) async {

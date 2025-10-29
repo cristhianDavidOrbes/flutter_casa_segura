@@ -2487,109 +2487,81 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
 
   void _mergeRemoteSignal(Map<String, dynamic> out, RemoteLiveSignal signal) {
-
     final rawName = signal.name.trim();
-
     final name = rawName.isEmpty ? signal.id : rawName;
 
-
-
     final entry = <String, dynamic>{
-
       'kind': signal.kind,
-
       if (signal.valueNumeric != null) 'value_numeric': signal.valueNumeric,
-
       if (signal.valueText != null && signal.valueText!.isNotEmpty)
-
         'value_text': signal.valueText,
-
       if (signal.extra.isNotEmpty) 'extra': signal.extra,
-
     };
-
-
 
     out[name] = entry;
 
-
-
     if (signal.extra.isNotEmpty) {
-
       for (final MapEntry<dynamic, dynamic> item in signal.extra.entries) {
-
-        out[item.key.toString()] = item.value;
-
+        final key = item.key.toString();
+        if (_sensitiveKeys.contains(key.toLowerCase())) continue;
+        out[key] = item.value;
       }
-
     }
 
-
-
-    if (name == 'detector_state') {
-
-      final extra = signal.extra;
-
-
-
-
-
-
-      }
-
-
-
-      }
-
-
-
-        if (existing is Map<String, dynamic>) {
-
-
-        } else {
-
-
-        }
-
-      }
-
-
-
-      final ultrasonic = <String, dynamic>{};
-
-      if (extra.containsKey('ultra_cm')) {
-
-        ultrasonic['cm'] = extra['ultra_cm'];
-
-      }
-
-      if (extra.containsKey('ultra_ok')) {
-
-        ultrasonic['ok'] = extra['ultra_ok'];
-
-      }
-
-      if (ultrasonic.isNotEmpty) {
-
-        final existing = out['ultrasonic'];
-
-        if (existing is Map<String, dynamic>) {
-
-          existing.addAll(ultrasonic);
-
-        } else {
-
-          out['ultrasonic'] = ultrasonic;
-
-        }
-
-      }
-
+    if (name != 'detector_state') {
+      return;
     }
 
+    final extra = signal.extra;
+    final detector = <String, dynamic>{};
+
+    final state = entry['value_text'];
+    if (state is String && state.isNotEmpty) {
+      detector['state'] = state;
+    }
+
+    final value = entry['value_numeric'];
+    if (value != null) {
+      detector['value'] = value;
+    }
+
+    for (final key in ['motion', 'pir', 'flame', 'smoke', 'gas', 'active', 'armed']) {
+      if (extra.containsKey(key)) {
+        detector[key] = extra[key];
+      }
+    }
+
+    final existingDetector = out['detector_state'];
+    if (existingDetector is Map<String, dynamic>) {
+      existingDetector.addAll(detector);
+    } else if (detector.isNotEmpty) {
+      out['detector_state'] = detector;
+    }
+
+    final ultrasonic = <String, dynamic>{};
+    if (extra.containsKey('ultra_cm')) {
+      ultrasonic['cm'] = extra['ultra_cm'];
+    } else if (extra.containsKey('distance_cm')) {
+      ultrasonic['cm'] = extra['distance_cm'];
+    }
+
+    if (extra.containsKey('ultra_ok')) {
+      ultrasonic['ok'] = extra['ultra_ok'];
+    } else if (extra.containsKey('ultrasonic_ok')) {
+      ultrasonic['ok'] = extra['ultrasonic_ok'];
+    }
+
+    if (ultrasonic.isEmpty) {
+      return;
+    }
+
+    final existingUltrasonic = out['ultrasonic'];
+    if (existingUltrasonic is Map<String, dynamic>) {
+      existingUltrasonic.addAll(ultrasonic);
+    } else {
+      out['ultrasonic'] = ultrasonic;
+    }
   }
-
-
 
   static const Set<String> _sensitiveKeys = {
 
@@ -4203,75 +4175,9 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
 
 
-    if (distance != null) {
 
-      final formatted = distance.abs() >= 100
-
-          ? distance.toStringAsFixed(0)
-
-          : distance.toStringAsFixed(distance.abs() >= 10 ? 1 : 2);
-
-      entries.add(_kv('Distancia', '$formatted cm'));
-
-    }
-
-
-
-    if (ultraOk != null) {
-
-      entries.add(_kv('Ultrasonido', ultraOk ? 'OK' : 'Sin eco'));
-
-    }
-
-
-
-    if (entries.isEmpty) return null;
-
-
-
-    final sourceLabel = _endpointUsed?.isNotEmpty == true
-
-        ? _endpointUsed!
-
-        : (_remoteSourceLabel?.isNotEmpty == true ? _remoteSourceLabel! : null);
-
-
-
-    if (sourceLabel != null) {
-
-      entries.add(_kv('Fuente', sourceLabel));
-
-    }
-
-
-
-    return Column(
-
-      crossAxisAlignment: CrossAxisAlignment.start,
-
-      children: [
-
-        Text(
-
-          'Resumen de sensores',
-
-          style: TextStyle(fontWeight: FontWeight.w700, color: cs.primary),
-
-        ),
-
-        const SizedBox(height: 8),
-
-        ...entries,
-
-      ],
-
-    );
-
-  }
 
 }
-
-
 
 class _DataList extends StatelessWidget {
 

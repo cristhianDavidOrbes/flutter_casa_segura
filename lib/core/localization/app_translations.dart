@@ -153,6 +153,41 @@ class AppTranslations extends Translations {
       'settings.push.error': 'No se pudo sincronizar: @error',
       'settings.family.manage': 'Gestionar familia',
       'settings.family.subtitle': 'Agrega contactos y revisa su actividad.',
+      'security.gemini.describe.context':
+          'Describe detalladamente lo que se observa en esta captura del dispositivo "@device". Enf�cate en aspectos relevantes para la seguridad y responde en espa�ol.',
+      'security.gemini.describe.fallback':
+          'El dispositivo "@device" detect� @label (@confidence% de confianza).',
+      'security.gemini.compare.prompt':
+          'Compara las dos im�genes y responde �nicamente con "MATCH" si es la misma persona o "NO_MATCH" si son personas distintas. Responde en espa�ol.',
+      'security.event.family.within':
+          'Coincide con el horario de @name (ventana: @window).',
+      'security.event.family.outside':
+          '@name est� fuera de su horario habitual (ventana: @window).',
+      'security.event.familyLabel': 'Posible familiar: @name',
+      'security.motion.expected.label': '🟢 Movimiento esperado',
+      'security.motion.expected.body':
+          'Movimiento detectado por @device a @distance cm (umbral @threshold cm). Posible llegada de: @names.',
+      'security.motion.suspicious.label': '🟠 Movimiento detectado',
+      'security.motion.suspicious.body':
+          'Movimiento detectado por @device a @distance cm (umbral @threshold cm). No hay familiares programados en este horario.',
+      'security.motion.suspicious.body.names':
+          'Movimiento detectado por @device a @distance cm (umbral @threshold cm). Familiares fuera de horario: @names.',
+      'ai.systemPrompt':
+          'Eres el asistente de seguridad de Casa Segura. Solo hablas de temas de seguridad del hogar (dispositivos, alertas, sensores, puertas, consejos y procedimientos). Si el usuario pregunta algo fuera de tema, redirige amablemente la conversaci�n. Responde siempre en espa�ol claro.',
+      'ai.error.missingKey':
+          'Parece que a�n no configuraste tu clave de Gemini. Agrega GEMINI_API_KEY al archivo .env para habilitar las respuestas inteligentes.',
+      'ai.error.noResponse':
+          'No recib� una respuesta �til del modelo en este momento. �Intentamos otra pregunta?',
+      'ai.error.http':
+          'Hubo un problema al contactar al modelo (c�digo @code). Intenta de nuevo m�s tarde.',
+      'ai.error.exception':
+          'No pude comunicarme con el modelo en este momento. Revisa tu conexi�n e int�ntalo otra vez.',
+      'ai.warning.outOfScope':
+          'Solo puedo ayudarte con temas de seguridad del hogar. Prueba preguntarme sobre c�maras, sensores, puertas o notificaciones.',
+      'ai.local.videoEnabled': 'Mostrando transmisi�n en vivo de la c�mara principal.',
+      'ai.local.videoDisabled': 'Cerrando la transmisi�n de video.',
+      'ai.local.detectionsEnabled': 'Mostrando panel de detecciones recientes.',
+      'ai.local.detectionsDisabled': 'Ocultando panel de detecciones.',
     },
     'en': {
       'app.name': 'SecurityHouse',
@@ -300,6 +335,41 @@ class AppTranslations extends Translations {
       'settings.push.error': 'Failed to sync: @error',
       'settings.family.manage': 'Manage family',
       'settings.family.subtitle': 'Add contacts and review their activity.',
+      'security.gemini.describe.context':
+          'Describe in detail what is happening in this capture from the "@device" device. Focus on security-relevant details and answer in clear English.',
+      'security.gemini.describe.fallback':
+          'Device "@device" detected @label (@confidence% confidence).',
+      'security.gemini.compare.prompt':
+          'Compare the two images and reply only with "MATCH" if they show the same person or "NO_MATCH" if they are different people. Reply in clear English.',
+      'security.event.family.within':
+          'Matches @name\'s allowed schedule (window: @window).',
+      'security.event.family.outside':
+          '@name is outside the usual schedule (window: @window).',
+      'security.event.familyLabel': 'Possible family member: @name',
+      'security.motion.expected.label': '🟢 Expected movement',
+      'security.motion.expected.body':
+          'Movement detected by @device at @distance cm (threshold @threshold cm). Possible arrival of: @names.',
+      'security.motion.suspicious.label': '🟠 Movement detected',
+      'security.motion.suspicious.body':
+          'Movement detected by @device at @distance cm (threshold @threshold cm). No family members are scheduled right now.',
+      'security.motion.suspicious.body.names':
+          'Movement detected by @device at @distance cm (threshold @threshold cm). Off-schedule family members: @names.',
+      'ai.systemPrompt':
+          'You are the Casa Segura safety assistant. You only discuss smart-home security topics such as device status, alerts, sensors, doors, safety tips, summaries, and procedures. If the user asks for something unrelated, politely redirect the conversation. Always respond in clear English.',
+      'ai.error.missingKey':
+          'It looks like your Gemini API key is missing. Add GEMINI_API_KEY to the .env file to enable smart replies.',
+      'ai.error.noResponse':
+          'The model did not return a useful answer right now. Want to try another question?',
+      'ai.error.http':
+          'There was a problem contacting the model (code @code). Please try again later.',
+      'ai.error.exception':
+          'I could not reach the model right now. Check your connection and try again.',
+      'ai.warning.outOfScope':
+          'I can only help with home security topics. Try asking about cameras, sensors, doors, or notifications.',
+      'ai.local.videoEnabled': 'Showing the live camera feed.',
+      'ai.local.videoDisabled': 'Closing the live video feed.',
+      'ai.local.detectionsEnabled': 'Displaying the recent detections panel.',
+      'ai.local.detectionsDisabled': 'Hiding the detections panel.',
     },
   };
 }
