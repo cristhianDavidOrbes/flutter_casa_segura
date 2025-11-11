@@ -38,9 +38,18 @@ class LocaleController extends GetxController {
 
   @override
   void onInit() {
+    final code = _storage.read('app_locale') ?? 'es';
+    locale.value = Locale(code);
     super.onInit();
     Get.updateLocale(locale.value);
   }
+
+  void changeLocale(Locale newLocale) {
+    locale.value = newLocale;
+    Get.updateLocale(newLocale);
+    _storage.write('app_locale', newLocale.languageCode);
+  }
+
 
   void setLocale(Locale value) {
     if (!locales.contains(value)) return;

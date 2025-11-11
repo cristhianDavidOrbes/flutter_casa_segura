@@ -16,6 +16,7 @@ class FamilyMemberDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final repo = FamilyRepository.instance;
+
     return Scaffold(
       appBar: AppBar(title: Text(member.name)),
       body: ListView(
@@ -23,11 +24,13 @@ class FamilyMemberDetailPage extends StatelessWidget {
         children: [
           _HeaderCard(member: member),
           const SizedBox(height: 20),
+
           Text(
-            'family.detail.logs.title'.tr,
+            'known.detail.logsTitle'.tr,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
+
           FutureBuilder<List<Event>>(
             future: repo.recentPresenceEvents(member.id ?? -1),
             builder: (context, snapshot) {
@@ -44,10 +47,12 @@ class FamilyMemberDetailPage extends StatelessWidget {
                   message: snapshot.error.toString(),
                 );
               }
+
               final events = snapshot.data ?? const <Event>[];
               if (events.isEmpty) {
-                return _LogsEmptyView();
+                return const _LogsEmptyView();
               }
+
               return Column(
                 children: [
                   for (final event in events)
@@ -56,9 +61,11 @@ class FamilyMemberDetailPage extends StatelessWidget {
               );
             },
           ),
+
           const SizedBox(height: 24),
+
           Text(
-            'family.detail.note'.tr,
+            'known.detail.note'.tr,
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
@@ -67,54 +74,50 @@ class FamilyMemberDetailPage extends StatelessWidget {
         ],
       ),
 
-      // Botones de acción (Editar y Eliminar)
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            // Botón Editar
+            // ✅ EDIT Button
             ElevatedButton.icon(
               onPressed: () async {
-                final updated = await Navigator.push<FamilyMember?>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AddFamilyMemberPage(existingMember: member),
-                  ),
+                final updated = await Get.to<FamilyMember?>(
+                  () => AddFamilyMemberPage(existingMember: member),
                 );
 
-                if (updated != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Familiar actualizado")),
+                if (updated != null) {
+                  Get.back(result: true);
+                  Get.snackbar(
+                    'known.detail.updatedTitle'.tr,
+                    'known.detail.updatedBody'.tr,
                   );
-                  Navigator.pop(context, true); // refrescar lista
                 }
               },
               icon: const Icon(Icons.edit),
-              label: const Text("Editar"),
+              label: Text('known.detail.edit'.tr),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
                 minimumSize: const Size(140, 48),
               ),
             ),
 
-            // Botón Eliminar
+            // ✅ DELETE Button
             ElevatedButton.icon(
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    title: const Text("Eliminar familiar"),
-                    content: const Text(
-                        "¿Seguro que deseas eliminar a este familiar?"),
+                    title: Text('known.detail.deleteTitle'.tr),
+                    content: Text('known.detail.deleteConfirm'.tr),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
-                        child: const Text("Cancelar"),
+                        child: Text('known.detail.cancel'.tr),
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: const Text("Eliminar"),
+                        child: Text('known.detail.delete'.tr),
                       ),
                     ],
                   ),
@@ -122,16 +125,18 @@ class FamilyMemberDetailPage extends StatelessWidget {
 
                 if (confirm == true) {
                   await repo.deleteFamilyMember(member.id!);
+
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Familiar eliminado")),
+                    Get.back(result: true);
+                    Get.snackbar(
+                      'known.detail.deletedTitle'.tr,
+                      'known.detail.deletedBody'.tr,
                     );
-                    Navigator.pop(context, true); // refrescar lista
                   }
                 }
               },
               icon: const Icon(Icons.delete),
-              label: const Text("Eliminar"),
+              label: Text('known.detail.delete'.tr),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 minimumSize: const Size(140, 48),
@@ -152,8 +157,10 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     final createdAt = DateFormat.yMMMMd(Get.locale?.toLanguageTag())
         .format(DateTime.fromMillisecondsSinceEpoch(member.createdAt));
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -201,10 +208,7 @@ class _HeaderCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       member.relation,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: TextStyle(color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -212,50 +216,38 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          if ((member.phone ?? '').isNotEmpty) ...[
-            Row(
-              children: [
-                const Icon(Icons.phone_outlined),
-                const SizedBox(width: 8),
-                Text(member.phone!),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          if ((member.email ?? '').isNotEmpty) ...[
-            Row(
-              children: [
-                const Icon(Icons.alternate_email),
-                const SizedBox(width: 8),
-                Text(member.email!),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (member.schedules.isNotEmpty) ...[
-            for (final schedule in member.schedules)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.schedule),
-                    const SizedBox(width: 8),
-                    Text(
-                      'family.detail.schedule.window'.trParams({
-                        'start': _formatTime(context, schedule.start),
-                        'end': _formatTime(context, schedule.end),
-                      }),
-                    ),
-                  ],
-                ),
+
+          if ((member.phone ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.phone_outlined),
+                  const SizedBox(width: 8),
+                  Text(member.phone!),
+                ],
               ),
-            const SizedBox(height: 12),
-          ],
+            ),
+
+          if ((member.email ?? '').isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.alternate_email),
+                  const SizedBox(width: 8),
+                  Text(member.email!),
+                ],
+              ),
+            ),
+
           Row(
             children: [
               const Icon(Icons.calendar_today_outlined),
               const SizedBox(width: 8),
-              Text('family.detail.memberSince'.trParams({'date': createdAt})),
+              Text(
+                'known.detail.memberSince'.trParams({'date': createdAt}),
+              ),
             ],
           ),
         ],
@@ -263,29 +255,16 @@ class _HeaderCard extends StatelessWidget {
     );
   }
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    final a = parts.isNotEmpty ? parts.first[0] : ' ';
-    final b = parts.length > 1 ? parts.last[0] : ' ';
-    return (a + b).toUpperCase();
-  }
-
   ImageProvider<Object>? _avatar(FamilyMember member) {
     final path = member.profileImagePath;
     if (path == null || path.isEmpty) return null;
     final file = File(path);
-    if (!file.existsSync()) return null;
-    return FileImage(file);
+    return file.existsSync() ? FileImage(file) : null;
   }
 
-  String _formatTime(BuildContext context, String? value) {
-    if (value == null || value.isEmpty) return '--';
-    final parts = value.split(':');
-    if (parts.length != 2) return value;
-    final hour = int.tryParse(parts[0]) ?? 0;
-    final minute = int.tryParse(parts[1]) ?? 0;
-    final time = TimeOfDay(hour: hour, minute: minute);
-    return MaterialLocalizations.of(context).formatTimeOfDay(time);
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return (parts.first[0] + (parts.length > 1 ? parts.last[0] : "")).toUpperCase();
   }
 }
 
@@ -298,27 +277,21 @@ class _PresenceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+
     final localeTag = Get.locale?.toLanguageTag();
     final date = DateTime.fromMillisecondsSinceEpoch(event.ts);
     final dateLabel = DateFormat.yMMMd(localeTag).add_Hm().format(date);
+
     final isOutOfSchedule = event.type == 'entry_out_of_schedule';
     final isEntry = event.type == 'entry' || isOutOfSchedule;
+
     final icon = isEntry ? Icons.login : Icons.logout;
+
     final chipLabel = isOutOfSchedule
-        ? 'family.detail.log.outOfSchedule'.tr
+        ? 'known.detail.log.outOfSchedule'.tr
         : isEntry
-            ? 'family.detail.log.entry'.tr
-            : 'family.detail.log.exit'.tr;
-    final bg = isOutOfSchedule
-        ? cs.errorContainer
-        : isEntry
-            ? cs.primaryContainer
-            : cs.surfaceContainerHighest;
-    final fg = isOutOfSchedule
-        ? cs.onErrorContainer
-        : isEntry
-            ? cs.onPrimaryContainer
-            : cs.onSurfaceVariant;
+            ? 'known.detail.log.entry'.tr
+            : 'known.detail.log.exit'.tr;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -331,8 +304,8 @@ class _PresenceTile extends StatelessWidget {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: bg,
-            foregroundColor: fg,
+            backgroundColor: cs.primaryContainer,
+            foregroundColor: cs.onPrimaryContainer,
             child: Icon(icon),
           ),
           const SizedBox(width: 16),
@@ -349,10 +322,7 @@ class _PresenceTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   dateLabel,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: TextStyle(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
@@ -364,6 +334,8 @@ class _PresenceTile extends StatelessWidget {
 }
 
 class _LogsEmptyView extends StatelessWidget {
+  const _LogsEmptyView();
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -378,12 +350,9 @@ class _LogsEmptyView extends StatelessWidget {
           Icon(Icons.timeline_outlined, size: 48, color: cs.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
-            'family.detail.logs.empty'.tr,
+            'known.detail.logs.empty'.tr,
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: cs.onSurfaceVariant),
+            style: TextStyle(color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -410,27 +379,17 @@ class _LogsErrorView extends StatelessWidget {
           Icon(Icons.error_outline, size: 48, color: cs.onErrorContainer),
           const SizedBox(height: 12),
           Text(
-            'family.detail.logs.error'.tr,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(color: cs.onErrorContainer),
+            'known.detail.logs.error'.tr,
+            style: TextStyle(color: cs.onErrorContainer),
           ),
           const SizedBox(height: 8),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: cs.onErrorContainer),
+            style: TextStyle(color: cs.onErrorContainer),
           ),
         ],
       ),
     );
   }
 }
-
-
-
-

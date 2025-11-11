@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -20,11 +21,9 @@ class _FamilyListPageState extends State<FamilyListPage> {
   @override
   void initState() {
     super.initState();
-    if (Get.isRegistered<FamilyController>()) {
-      _controller = Get.find<FamilyController>();
-    } else {
-      _controller = Get.put(FamilyController(), permanent: true);
-    }
+    _controller = Get.isRegistered<FamilyController>()
+        ? Get.find<FamilyController>()
+        : Get.put(FamilyController(), permanent: true);
   }
 
   @override
@@ -32,10 +31,10 @@ class _FamilyListPageState extends State<FamilyListPage> {
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text('family.list.title'.tr),
+        title: Text('known.list.title'.tr),
         actions: [
           IconButton(
-            tooltip: 'family.list.refresh'.tr,
+            tooltip: 'known.list.refresh'.tr,
             icon: const Icon(Icons.refresh),
             onPressed: _controller.loadMembers,
           ),
@@ -43,62 +42,50 @@ class _FamilyListPageState extends State<FamilyListPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
-          final added = await Get.to<FamilyMember?>(
-            () => const AddFamilyMemberPage(),
-          );
+          final added = await Get.to<FamilyMember?>(() => const AddFamilyMemberPage());
           if (added != null) {
             Get.snackbar(
-              'family.add.success.title'.tr,
-              'family.add.success.body'.trParams({'name': added.name}),
+              'known.add.success.title'.tr,
+              'known.add.success.body'.trParams({'name': added.name}),
               backgroundColor: cs.primaryContainer,
               colorText: cs.onPrimaryContainer,
               snackPosition: SnackPosition.BOTTOM,
-              duration: const Duration(seconds: 3),
             );
           }
         },
         icon: const Icon(Icons.person_add_alt_1),
-        label: Text('family.list.add'.tr),
+        label: Text('known.list.add'.tr),
       ),
-      body: Obx(
-        () {
-          if (_controller.loading.value && _controller.members.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Obx(() {
+        if (_controller.loading.value && _controller.members.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          final error = _controller.error.value;
-          if (error != null && _controller.members.isEmpty) {
-            return _ErrorView(
-              message: error,
-              onRetry: _controller.loadMembers,
-            );
-          }
+        final error = _controller.error.value;
+        if (error != null && _controller.members.isEmpty) {
+          return _ErrorView(message: error, onRetry: _controller.loadMembers);
+        }
 
-          if (_controller.members.isEmpty) {
-            return _EmptyView(onAdd: () {
-              Get.to(() => const AddFamilyMemberPage());
-            });
-          }
+        if (_controller.members.isEmpty) {
+          return _EmptyView(onAdd: () => Get.to(() => const AddFamilyMemberPage()));
+        }
 
-          return RefreshIndicator(
-            onRefresh: _controller.loadMembers,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: _controller.members.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final member = _controller.members[index];
-                return _FamilyTile(
-                  member: member,
-                  onTap: () => Get.to(
-                    () => FamilyMemberDetailPage(member: member),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+        return RefreshIndicator(
+          onRefresh: _controller.loadMembers,
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            itemCount: _controller.members.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final member = _controller.members[index];
+              return _FamilyTile(
+                member: member,
+                onTap: () => Get.to(() => FamilyMemberDetailPage(member: member)),
+              );
+            },
+          ),
+        );
+      }),
     );
   }
 }
@@ -114,6 +101,10 @@ class _FamilyTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final createdAt = DateFormat.yMMMd(Get.locale?.toLanguageTag())
         .format(DateTime.fromMillisecondsSinceEpoch(member.createdAt));
+
+    final hasPhoto =
+        member.profileImagePath != null && File(member.profileImagePath!).existsSync();
+
     return Material(
       color: cs.surface,
       borderRadius: BorderRadius.circular(16),
@@ -127,13 +118,17 @@ class _FamilyTile extends StatelessWidget {
               CircleAvatar(
                 radius: 28,
                 backgroundColor: cs.primaryContainer,
-                child: Text(
-                  _initials(member.name),
-                  style: TextStyle(
-                    color: cs.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundImage:
+                    hasPhoto ? FileImage(File(member.profileImagePath!)) : null,
+                child: !hasPhoto
+                    ? Text(
+                        _initials(member.name),
+                        style: TextStyle(
+                          color: cs.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -147,20 +142,11 @@ class _FamilyTile extends StatelessWidget {
                           ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      member.relation,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
+                    Text(member.relation, style: TextStyle(color: cs.onSurfaceVariant)),
                     const SizedBox(height: 6),
                     Text(
-                      'family.list.memberSince'.trParams({'date': createdAt}),
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      'known.list.memberSince'.trParams({'date': createdAt}),
+                      style: TextStyle(color: cs.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -175,15 +161,12 @@ class _FamilyTile extends StatelessWidget {
 
   String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+'));
-    final a = parts.isNotEmpty ? parts.first[0] : ' ';
-    final b = parts.length > 1 ? parts.last[0] : ' ';
-    return (a + b).toUpperCase();
+    return (parts.first[0] + (parts.length > 1 ? parts.last[0] : "")).toUpperCase();
   }
 }
 
 class _EmptyView extends StatelessWidget {
   const _EmptyView({required this.onAdd});
-
   final VoidCallback onAdd;
 
   @override
@@ -197,25 +180,18 @@ class _EmptyView extends StatelessWidget {
           children: [
             Icon(Icons.groups_outlined, size: 72, color: cs.outline),
             const SizedBox(height: 16),
-            Text(
-              'family.list.empty.title'.tr,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            Text('known.list.empty.title'.tr, textAlign: TextAlign.center),
             const SizedBox(height: 8),
             Text(
-              'family.list.empty.subtitle'.tr,
+              'known.list.empty.subtitle'.tr,
               textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
+              style: TextStyle(color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onAdd,
               icon: const Icon(Icons.person_add),
-              label: Text('family.list.add'.tr),
+              label: Text('known.list.add'.tr),
             ),
           ],
         ),
@@ -226,7 +202,6 @@ class _EmptyView extends StatelessWidget {
 
 class _ErrorView extends StatelessWidget {
   const _ErrorView({required this.message, required this.onRetry});
-
   final String message;
   final VoidCallback onRetry;
 
@@ -241,27 +216,14 @@ class _ErrorView extends StatelessWidget {
           children: [
             Icon(Icons.error_outline, size: 64, color: cs.error),
             const SizedBox(height: 12),
-            Text(
-              'family.list.error.title'.tr,
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: cs.error),
-            ),
+            Text('known.list.error.title'.tr),
             const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: cs.onSurfaceVariant),
-            ),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(color: cs.onSurfaceVariant)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: Text('family.list.refresh'.tr),
+              label: Text('known.list.refresh'.tr),
             ),
           ],
         ),
@@ -269,8 +231,3 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

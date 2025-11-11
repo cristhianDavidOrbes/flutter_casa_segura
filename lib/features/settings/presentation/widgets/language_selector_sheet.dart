@@ -47,14 +47,16 @@ class LanguageSelectorSheet extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 16),
+
             Obx(() {
               final selected = localeController.locale.value;
+
               return Column(
                 children: [
                   for (final locale in locales)
                     ListTile(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
                       title: Text(_labelForLocale(locale).tr),
                       trailing: Icon(
                         selected == locale
@@ -64,12 +66,17 @@ class LanguageSelectorSheet extends StatelessWidget {
                             ? colorScheme.primary
                             : colorScheme.onSurfaceVariant,
                       ),
-                      onTap: () => localeController.setLocale(locale),
+                      onTap: () {
+                        localeController.changeLocale(locale); // ✅ FIX
+                        Get.back();
+                      },
                     ),
                 ],
               );
             }),
+
             const SizedBox(height: 12),
+
             TextButton(
               onPressed: () => Get.back(),
               child: Text('settings.language.close'.tr),

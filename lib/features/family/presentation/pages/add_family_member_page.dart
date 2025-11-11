@@ -10,7 +10,7 @@ import 'package:flutter_seguridad_en_casa/data/local/app_db.dart';
 import 'package:flutter_seguridad_en_casa/repositories/family_repository.dart';
 
 class AddFamilyMemberPage extends StatefulWidget {
-  final FamilyMember? existingMember; // 👈 parámetro opcional para editar
+  final FamilyMember? existingMember;
 
   const AddFamilyMemberPage({super.key, this.existingMember});
 
@@ -26,8 +26,6 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   final _emailCtrl = TextEditingController();
 
   bool _saving = false;
-  String? _scheduleError;
-  final List<_ScheduleRange> _schedules = <_ScheduleRange>[];
   String? _photoPath;
   final ImagePicker _picker = ImagePicker();
 
@@ -36,26 +34,14 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   @override
   void initState() {
     super.initState();
-    if (Get.isRegistered<FamilyController>()) {
-      _controller = Get.find<FamilyController>();
-    } else {
-      _controller = Get.put(FamilyController(), permanent: true);
-    }
+    _controller = Get.find<FamilyController>();
 
-    // 👇 precargar datos si estamos editando
     if (widget.existingMember != null) {
       _nameCtrl.text = widget.existingMember!.name;
       _relationCtrl.text = widget.existingMember!.relation;
       _phoneCtrl.text = widget.existingMember!.phone ?? '';
       _emailCtrl.text = widget.existingMember!.email ?? '';
       _photoPath = widget.existingMember!.profileImagePath;
-
-      _schedules.addAll(widget.existingMember!.schedules.map(
-        (s) => _ScheduleRange(
-          start: _parseTime(s.start),
-          end: _parseTime(s.end),
-        ),
-      ));
     }
   }
 
@@ -71,103 +57,44 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (!_validateSchedule()) {
-      setState(() {});
-      return;
-    }
-
-    setState(() {
-      _saving = true;
-      _scheduleError = null;
-    });
+    setState(() => _saving = true);
 
     try {
-      final schedules = _schedules
-          .where((range) => range.start != null && range.end != null)
-          .map(
-            (range) => FamilySchedule(
-              start: _formatTime(range.start!),
-              end: _formatTime(range.end!),
-            ),
-          )
-          .toList(growable: false);
+      FamilyMember? member;
 
       if (widget.existingMember == null) {
-        // 👉 Crear nuevo
-        final member = await _controller.addMember(
+        // ✅ Nuevo registro
+        member = await _controller.addMember(
           name: _nameCtrl.text.trim(),
           relation: _relationCtrl.text.trim(),
-          phone:
-              _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-          email:
-              _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+          phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+          email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
           profileImagePath: _photoPath,
-          schedules: schedules,
+          schedules: const [],
         );
-        if (!mounted) return;
-        Get.back(result: member);
       } else {
-        // 👉 Editar existente
-        final updated = widget.existingMember!.copyWith(
+        // ✅ Edición
+        member = widget.existingMember!.copyWith(
           name: _nameCtrl.text.trim(),
           relation: _relationCtrl.text.trim(),
-          phone:
-              _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-          email:
-              _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+          phone: _phoneCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
           profileImagePath: _photoPath,
-          schedules: schedules,
         );
-        await FamilyRepository.instance.updateFamilyMember(updated);
-        if (!mounted) return;
-        Get.back(result: updated);
+
+        await FamilyRepository.instance.updateFamilyMember(member);
       }
+
+      if (!mounted) return;
+      if (member != null) Get.back(result: member);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('family.add.error'.trParams({'error': '$e'}))),
+        SnackBar(content: Text('known.add.error'.trParams({'error': '$e'}))),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  bool _validateSchedule() {
-    if (_schedules.isEmpty) {
-      _scheduleError = null;
-      return true;
-    }
-
-    for (final range in _schedules) {
-      final start = range.start;
-      final end = range.end;
-      if (start == null || end == null) {
-        _scheduleError = 'family.add.scheduleInvalid'.tr;
-        return false;
-      }
-      final startMinutes = start.hour * 60 + start.minute;
-      final endMinutes = end.hour * 60 + end.minute;
-      if (endMinutes <= startMinutes) {
-        _scheduleError = 'family.add.scheduleInvalid'.tr;
-        return false;
-      }
-    }
-
-    _scheduleError = null;
-    return true;
-  }
-
-  String _formatTime(TimeOfDay time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
-  TimeOfDay _parseTime(String value) {
-    final parts = value.split(':');
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = int.tryParse(parts[1]) ?? 0;
-    return TimeOfDay(hour: h, minute: m);
   }
 
   Future<void> _pickPhoto() async {
@@ -180,78 +107,39 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
       if (picked == null) return;
 
       final docs = await getApplicationDocumentsDirectory();
-      final folder = Directory(p.join(docs.path, 'family_profiles'));
-      if (!await folder.exists()) {
-        await folder.create(recursive: true);
-      }
+      final folder = Directory(p.join(docs.path, 'known_people_profiles'));
+
+      if (!await folder.exists()) await folder.create(recursive: true);
+
       final newFile = File(
-        p.join(
-          folder.path,
-          'member_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        ),
+        p.join(folder.path, 'person_${DateTime.now().millisecondsSinceEpoch}.jpg'),
       );
       await File(picked.path).copy(newFile.path);
 
       if (_photoPath != null && _photoPath != newFile.path) {
         final previous = File(_photoPath!);
-        if (await previous.exists()) {
-          await previous.delete();
-        }
+        if (await previous.exists()) await previous.delete();
       }
 
       if (!mounted) return;
-      setState(() {
-        _photoPath = newFile.path;
-      });
+      setState(() => _photoPath = newFile.path);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('family.add.photoError'.trParams({'error': '$e'}))),
+        SnackBar(content: Text('known.add.photoError'.trParams({'error': '$e'}))),
       );
     }
-  }
-
-  Future<void> _addSchedule() async {
-    final start = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (start == null) return;
-
-    if (!mounted) return;
-    final end = await showTimePicker(
-      context: context,
-      initialTime: start,
-    );
-    if (end == null) return;
-
-    final startMinutes = start.hour * 60 + start.minute;
-    final endMinutes = end.hour * 60 + end.minute;
-    if (endMinutes <= startMinutes) {
-      setState(() => _scheduleError = 'family.add.scheduleInvalid'.tr);
-      return;
-    }
-
-    setState(() {
-      _schedules.add(_ScheduleRange(start: start, end: end));
-      _scheduleError = null;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final photoFile =
-        _photoPath != null && _photoPath!.isNotEmpty ? File(_photoPath!) : null;
-    final hasPhoto = photoFile?.existsSync() ?? false;
+    final photoFile = _photoPath != null ? File(_photoPath!) : null;
     final isEditing = widget.existingMember != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing
-            ? 'Modificar Registro '.tr
-            : 'Editar Perfil de Persona Cercana '.tr),
+        title: Text(isEditing ? 'known.add.editTitle'.tr : 'known.add.title'.tr),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -261,160 +149,91 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                isEditing
-                    ? 'Editar Perfil '.tr
-                    : 'Registro Actualizado '.tr,
+                isEditing ? 'known.add.editSubtitle'.tr : 'known.add.subtitle'.tr,
                 style: Theme.of(context)
                     .textTheme
                     .bodyMedium
                     ?.copyWith(color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
-              _buildField(
+
+              /// Nombre
+              TextFormField(
                 controller: _nameCtrl,
-                label: 'family.add.name'.tr,
-                hint: 'family.add.nameHint'.tr,
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'family.add.nameRequired'.tr;
-                  }
-                  return null;
-                },
+                decoration: InputDecoration(
+                  labelText: 'known.add.name'.tr,
+                  hintText: 'known.add.nameHint'.tr,
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'known.add.nameRequired'.tr : null,
               ),
               const SizedBox(height: 16),
-              _buildField(
+
+              /// Relación
+              TextFormField(
                 controller: _relationCtrl,
-                label: 'family.add.relation'.tr,
-                hint: 'family.add.relationHint'.tr,
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'family.add.relationRequired'.tr;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildField(
-                controller: _phoneCtrl,
-                label: 'family.add.phone'.tr,
-                hint: 'family.add.phoneHint'.tr,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 16),
-              _buildField(
-                controller: _emailCtrl,
-                label: 'family.add.email'.tr,
-                hint: 'family.add.emailHint'.tr,
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  final text = value?.trim() ?? '';
-                  if (text.isEmpty) return null;
-                  final hasAt = text.contains('@');
-                  final hasDot = text.contains('.');
-                  if (!hasAt || !hasDot) {
-                    return 'family.add.emailInvalid'.tr;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              Center(
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _pickPhoto,
-                      child: CircleAvatar(
-                        radius: 48,
-                        backgroundColor: cs.surfaceContainerHighest,
-                        backgroundImage:
-                            hasPhoto ? FileImage(photoFile!) : null,
-                        child: hasPhoto
-                            ? null
-                            : Icon(
-                                Icons.camera_alt_outlined,
-                                size: 32,
-                                color: cs.onSurfaceVariant,
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _pickPhoto,
-                      icon: const Icon(Icons.photo_camera_back_outlined),
-                      label: Text('family.add.photoButton'.tr),
-                    ),
-                  ],
+                decoration: InputDecoration(
+                  labelText: 'known.add.relation'.tr,
+                  hintText: 'known.add.relationHint'.tr,
                 ),
               ),
+              const SizedBox(height: 16),
+
+              /// Teléfono
+              TextFormField(
+                controller: _phoneCtrl,
+                decoration: InputDecoration(
+                  labelText: 'known.add.phone'.tr,
+                  hintText: 'known.add.phoneHint'.tr,
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 16),
+
+              /// Correo
+              TextFormField(
+                controller: _emailCtrl,
+                decoration: InputDecoration(
+                  labelText: 'known.add.email'.tr,
+                  hintText: 'known.add.emailHint'.tr,
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
               const SizedBox(height: 24),
-              Text(
-                'family.add.scheduleTitle'.tr,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(color: cs.onSurface),
+
+              /// Foto
+              Center(
+                child: GestureDetector(
+                  onTap: _pickPhoto,
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundColor: cs.surfaceContainerHighest,
+                    backgroundImage: (photoFile != null && photoFile.existsSync())
+                        ? FileImage(photoFile)
+                        : null,
+                    child: (photoFile == null || !photoFile.existsSync())
+                        ? Icon(Icons.camera_alt, size: 32, color: cs.onSurfaceVariant)
+                        : null,
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_schedules.isEmpty)
-                    Text(
-                      'family.add.scheduleEmpty'.tr,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  for (final entry in _schedules.asMap().entries)
-                    Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: const Icon(Icons.schedule_outlined),
-                        title: Text(
-                          '${_formatTime(entry.value.start!)} - ${_formatTime(entry.value.end!)}',
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'family.add.scheduleRemove'.tr,
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            setState(() {
-                              _schedules.removeAt(entry.key);
-                              _scheduleError = null;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: _addSchedule,
-                      icon: const Icon(Icons.add),
-                      label: Text('family.add.scheduleAdd'.tr),
-                    ),
-                  ),
-                ],
+
+              TextButton.icon(
+                onPressed: _pickPhoto,
+                icon: const Icon(Icons.photo_camera),
+                label: Text('known.add.photoButton'.tr),
               ),
-              if (_scheduleError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _scheduleError!,
-                  style: TextStyle(color: cs.error),
-                ),
-              ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
+
               _saving
                   ? const Center(child: CircularProgressIndicator())
                   : FilledButton.icon(
                       onPressed: _submit,
-                      icon: const Icon(Icons.save_outlined),
+                      icon: const Icon(Icons.save),
                       label: Text(isEditing
-                          ? 'Guardar Registro '.tr
-                          : 'family.add.submit'.tr),
+                          ? 'known.add.save'.tr
+                          : 'known.add.submit'.tr),
                     ),
             ],
           ),
@@ -422,32 +241,4 @@ class _AddFamilyMemberPageState extends State<AddFamilyMemberPage> {
       ),
     );
   }
-
-  Widget _buildField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-    TextInputAction? textInputAction,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-}
-
-class _ScheduleRange {
-  _ScheduleRange({this.start, this.end});
-
-  TimeOfDay? start;
-  TimeOfDay? end;
 }
